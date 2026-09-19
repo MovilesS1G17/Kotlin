@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Insets the Centralia star mark into the adaptive-icon safe zone. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/centralia_mark"
+    android:insetBottom="22%"
+    android:insetLeft="22%"
+    android:insetRight="22%"
+    android:insetTop="22%" />
