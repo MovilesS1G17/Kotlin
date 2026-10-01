@@ -5,7 +5,11 @@ package com.centralia.app.domain.auth
  * `suspend` function that throws, so call sites keep the same shape.
  */
 interface AuthenticationRepository {
-    suspend fun createAccount(email: String, password: String): AuthenticatedUser
+    suspend fun createAccount(displayName: String, email: String, password: String): AuthenticatedUser
+
+    suspend fun restoreSession(): AuthenticatedUser?
+
+    suspend fun updateDisplayName(name: String): AuthenticatedUser
 
     suspend fun logIn(email: String, password: String): AuthenticatedUser
 

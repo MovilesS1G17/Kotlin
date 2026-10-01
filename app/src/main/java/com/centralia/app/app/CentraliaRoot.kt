@@ -7,6 +7,14 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.centralia.app.feature.auth.LogInScreen
@@ -25,6 +33,22 @@ fun CentraliaRoot(
     modifier: Modifier = Modifier
 ) {
     val phase by container.session.phase.collectAsStateWithLifecycle()
+    var restoring by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        try {
+            container.authenticationRepository.restoreSession()?.let(container.session::completeAuthentication)
+        } catch (_: Exception) {
+            container.session.showLogIn()
+        } finally {
+            restoring = false
+        }
+    }
+    if (restoring) {
+        Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        return
+    }
 
     AnimatedContent(
         targetState = phase,

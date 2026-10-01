@@ -4,6 +4,7 @@ import com.centralia.app.domain.UuidSerializer
 import com.centralia.app.domain.auth.AuthenticatedUser
 import com.centralia.app.domain.library.VideoPlatform
 import java.util.UUID
+import java.util.Locale
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -101,6 +102,7 @@ data class ProfileStorageUsage(
      */
     val summary: String
         get() = "%.1f GB of %.0f GB (%d%%)".format(
+            Locale.US,
             usedGigabytes,
             capacityGigabytes,
             percentage

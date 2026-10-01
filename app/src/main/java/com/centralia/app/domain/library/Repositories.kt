@@ -16,6 +16,8 @@ interface VideoItemRepository {
 
     suspend fun updateNote(id: UUID, note: String?)
 
+    fun recordSourceOpened(id: UUID) {}
+
     suspend fun updateTags(id: UUID, tags: List<String>)
 }
 
