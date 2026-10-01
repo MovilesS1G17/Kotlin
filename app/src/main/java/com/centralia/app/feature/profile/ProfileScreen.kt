@@ -171,30 +171,8 @@ fun ProfileScreen(
                                 ProfileActionRow(title = "Edit Profile") {
                                     activeSheet = ProfileSheet.EDIT_PROFILE
                                 }
-                                CentraliaDivider(
-                                    modifier = Modifier.padding(horizontal = Spacing.medium)
-                                )
-                                ProfileActionRow(title = "Change Password") {
-                                    activeSheet = ProfileSheet.CHANGE_PASSWORD
-                                }
-                                CentraliaDivider(
-                                    modifier = Modifier.padding(horizontal = Spacing.medium)
-                                )
-                                ProfileActionRow(title = "Notification Preferences") {
-                                    activeSheet = ProfileSheet.NOTIFICATION_PREFERENCES
-                                }
-                            }
-                        }
-                    }
 
-                    item(key = "storage") {
-                        CenteredContent {
-                            StorageCard(
-                                summary = state.storageUsage.summary,
-                                fractionUsed = state.storageUsage.fractionUsed.toFloat(),
-                                onExport = { activeSheet = ProfileSheet.EXPORT_LIBRARY },
-                                modifier = Modifier.padding(horizontal = Spacing.medium)
-                            )
+                            }
                         }
                     }
 

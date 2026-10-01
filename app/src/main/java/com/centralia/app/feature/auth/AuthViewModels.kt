@@ -109,6 +109,8 @@ class SignUpViewModel(
     data class UiState(
         val mode: Mode = Mode.OPTIONS,
         val email: String = "",
+        val displayName: String = "",
+        val displayNameError: String? = null,
         val password: String = "",
         val passwordConfirmation: String = "",
         val emailError: String? = null,
@@ -128,6 +130,8 @@ class SignUpViewModel(
 
     fun onPasswordChange(value: String) = _uiState.update { it.copy(password = value) }
 
+    fun onDisplayNameChange(value: String) = _uiState.update { it.copy(displayName = value) }
+
     fun onPasswordConfirmationChange(value: String) =
         _uiState.update { it.copy(passwordConfirmation = value) }
 
@@ -144,6 +148,7 @@ class SignUpViewModel(
             _uiState.update { it.copy(isSubmittingEmail = true, failureMessage = null) }
             try {
                 val user = repository.createAccount(
+                    displayName = _uiState.value.displayName.trim(),
                     email = AuthenticationValidation.normalizedEmail(_uiState.value.email),
                     password = _uiState.value.password
                 )
@@ -182,6 +187,7 @@ class SignUpViewModel(
         val state = _uiState.value
         val emailError = AuthenticationValidation.emailError(state.email)
         val passwordError = AuthenticationValidation.passwordError(state.password)
+        val displayNameError = if (state.displayName.trim().isEmpty()) "Enter your name." else null
         val confirmationError = if (state.password == state.passwordConfirmation) {
             null
         } else {
@@ -192,10 +198,11 @@ class SignUpViewModel(
             it.copy(
                 emailError = emailError,
                 passwordError = passwordError,
-                confirmationError = confirmationError
+                confirmationError = confirmationError,
+                displayNameError = displayNameError
             )
         }
-        return emailError == null && passwordError == null && confirmationError == null
+        return emailError == null && passwordError == null && confirmationError == null && displayNameError == null
     }
 }
 

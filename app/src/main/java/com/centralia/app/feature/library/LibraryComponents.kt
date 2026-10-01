@@ -257,7 +257,7 @@ fun LibraryVideoCard(
                 )
 
                 Text(
-                    text = video.creator,
+                    text = video.creatorDisplayName,
                     style = CentraliaType.caption.medium(),
                     color = CentraliaColors.SecondaryText,
                     maxLines = 1,
@@ -333,7 +333,7 @@ fun VideoOverflowMenu(
                     isExpanded = false
                     shareLink(
                         video.displayTitle,
-                        "${video.displayTitle} — ${video.creator}",
+                        "${video.displayTitle} — ${video.creatorDisplayName}",
                         video.sourceURL
                     )
                 }

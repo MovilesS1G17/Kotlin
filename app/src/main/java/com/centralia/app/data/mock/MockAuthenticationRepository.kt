@@ -20,7 +20,7 @@ class MockAuthenticationRepository(
     private val providerFailures: Map<AuthenticationProvider, AuthenticationException> = emptyMap()
 ) : AuthenticationRepository {
 
-    override suspend fun createAccount(email: String, password: String): AuthenticatedUser {
+    override suspend fun createAccount(displayName: String, email: String, password: String): AuthenticatedUser {
         simulateWork()
 
         if (email.equals("existing@example.com", ignoreCase = true)) {
@@ -33,6 +33,11 @@ class MockAuthenticationRepository(
             email = email
         )
     }
+
+    override suspend fun restoreSession(): AuthenticatedUser? = null
+
+    override suspend fun updateDisplayName(name: String): AuthenticatedUser =
+        AuthenticatedUser(deterministicID(name), name, null)
 
     override suspend fun logIn(email: String, password: String): AuthenticatedUser {
         simulateWork()

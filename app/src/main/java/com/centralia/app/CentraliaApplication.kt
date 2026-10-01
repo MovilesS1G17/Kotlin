@@ -15,6 +15,6 @@ class CentraliaApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        container = DependencyContainer.mock(this)
+        container = DependencyContainer.live(this)
     }
 }
