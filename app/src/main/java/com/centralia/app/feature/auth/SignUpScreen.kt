@@ -119,7 +119,6 @@ fun SignUpScreen(
                 SignUpViewModel.Mode.EMAIL -> EmailControls(
                     state = state,
                     onEmailChange = viewModel::onEmailChange,
-                    onDisplayNameChange = viewModel::onDisplayNameChange,
                     onPasswordChange = viewModel::onPasswordChange,
                     onConfirmationChange = viewModel::onPasswordConfirmationChange,
                     onCreateAccount = { viewModel.createAccount(completeAuthentication) },
@@ -192,7 +191,6 @@ private fun OptionControls(
 private fun EmailControls(
     state: SignUpViewModel.UiState,
     onEmailChange: (String) -> Unit,
-    onDisplayNameChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onConfirmationChange: (String) -> Unit,
     onCreateAccount: () -> Unit,
@@ -203,14 +201,6 @@ private fun EmailControls(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Spacing.medium)
     ) {
-        CentraliaLabeledTextField(
-            label = "Name",
-            placeholder = "Your name",
-            value = state.displayName,
-            onValueChange = onDisplayNameChange,
-            errorMessage = state.displayNameError
-        )
-
         CentraliaLabeledTextField(
             label = "Email",
             placeholder = "you@example.com",

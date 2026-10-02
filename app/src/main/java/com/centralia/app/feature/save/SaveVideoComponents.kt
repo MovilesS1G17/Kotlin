@@ -116,7 +116,7 @@ fun SaveImportStatusCard(
                     )
 
                     Text(
-                        text = "${metadata.creatorDisplayName} · ${metadata.formattedDuration}",
+                        text = "${metadata.creator} · ${metadata.formattedDuration}",
                         style = CentraliaType.subheadline.semibold(),
                         color = CentraliaColors.SecondaryText
                     )

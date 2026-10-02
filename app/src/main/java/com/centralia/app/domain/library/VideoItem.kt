@@ -89,17 +89,15 @@ data class VideoItem(
      * `displayTitle` — the first non-blank of custom title, generated summary,
      * or source caption, falling back to the creator.
      */
-    val creatorDisplayName: String get() = creator.ifEmpty { "Creator unavailable" }
-
     val displayTitle: String
         get() = customTitle?.nonEmptyTrimmed()
             ?: generatedSummary?.nonEmptyTrimmed()
             ?: sourceCaption?.nonEmptyTrimmed()
-            ?: if (creator.isEmpty()) "Saved short" else "Short by $creator"
+            ?: "Short by $creator"
 
     /** `formattedDuration` — `String(format: "%d:%02d", minutes, seconds)`. */
     val formattedDuration: String
-        get() = if (durationSeconds <= 0) "Duration unavailable" else "%d:%02d".format(durationSeconds / 60, durationSeconds % 60)
+        get() = "%d:%02d".format(durationSeconds / 60, durationSeconds % 60)
 }
 
 /** Swift's `private extension String { var nonEmptyTrimmed: String? }`. */

@@ -2,12 +2,6 @@ package com.centralia.app.app
 
 import android.content.Context
 import com.centralia.app.data.export.JsonLibraryExportService
-import com.centralia.app.data.network.APIAuthenticationRepository
-import com.centralia.app.data.network.APILibraryRepository
-import com.centralia.app.data.network.APIVideoImportPipeline
-import com.centralia.app.data.network.APIUserRepository
-import com.centralia.app.data.network.CentraliaApi
-import com.centralia.app.data.network.SecureTokenStore
 import com.centralia.app.data.mock.MockAuthenticationRepository
 import com.centralia.app.data.mock.MockDataStore
 import com.centralia.app.data.mock.MockLibraryRepository
@@ -40,22 +34,6 @@ class DependencyContainer(
     val revisions: LibraryRevisions = LibraryRevisions()
 ) {
     companion object {
-        fun live(context: Context): DependencyContainer {
-            val appSession = AppSession()
-            val api = CentraliaApi(SecureTokenStore(context), appSession::signOut)
-            val library = APILibraryRepository(api)
-            val user = APIUserRepository(api)
-            return DependencyContainer(
-                authenticationRepository = APIAuthenticationRepository(api),
-                videoItemRepository = library,
-                folderRepository = library,
-                searchHistoryRepository = MockSearchHistoryRepository(MockDataStore(context.filesDir)),
-                userRepository = user,
-                libraryExportService = JsonLibraryExportService(library, library, user, context.cacheDir),
-                videoImportPipeline = APIVideoImportPipeline(api),
-                session = appSession
-            )
-        }
         /** `DependencyContainer.mock()`. */
         fun mock(context: Context): DependencyContainer {
             val store = MockDataStore(context.filesDir)

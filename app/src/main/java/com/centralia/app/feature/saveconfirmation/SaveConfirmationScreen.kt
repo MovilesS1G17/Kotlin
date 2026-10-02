@@ -244,7 +244,7 @@ private fun VideoSummaryCard(
             )
 
             Text(
-                text = video.creatorDisplayName,
+                text = video.creator,
                 style = CentraliaType.title3.bold(),
                 color = CentraliaColors.Ink,
                 maxLines = 2,

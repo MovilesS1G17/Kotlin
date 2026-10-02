@@ -29,10 +29,8 @@ data class ImportedVideoMetadata(
     val extractedOnScreenText: String?,
     val generatedSummary: String?
 ) {
-    val creatorDisplayName: String get() = creator.ifEmpty { "Creator unavailable" }
-
     val formattedDuration: String
-        get() = if (durationSeconds <= 0) "Duration unavailable" else "%d:%02d".format(durationSeconds / 60, durationSeconds % 60)
+        get() = "%d:%02d".format(durationSeconds / 60, durationSeconds % 60)
 }
 
 /** `VideoImportError`. */

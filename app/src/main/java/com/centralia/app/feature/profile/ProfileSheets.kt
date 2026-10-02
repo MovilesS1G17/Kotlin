@@ -56,14 +56,14 @@ fun EditProfileSheet(
     onDismiss: () -> Unit
 ) {
     var displayName by remember { mutableStateOf(profile.displayName) }
-    val email = profile.email
+    var email by remember { mutableStateOf(profile.email) }
     var nameError by remember { mutableStateOf<String?>(null) }
     var emailError by remember { mutableStateOf<String?>(null) }
 
     val submit = {
         val trimmedName = displayName.trim()
         nameError = if (trimmedName.isEmpty()) "Enter your name." else null
-        emailError = null
+        emailError = AuthenticationValidation.emailError(email)
 
         if (nameError == null && emailError == null) {
             onSave(trimmedName, email)
@@ -105,15 +105,21 @@ fun EditProfileSheet(
                     capitalization = KeyboardCapitalization.Words
                 )
 
-                Text(
-                    text = "Email: $email",
-                    style = CentraliaType.body,
-                    color = CentraliaColors.SecondaryText
+                CentraliaLabeledTextField(
+                    label = "Email",
+                    placeholder = "you@example.com",
+                    value = email,
+                    onValueChange = { email = it },
+                    errorMessage = emailError,
+                    keyboardType = KeyboardType.Email,
+                    imeAction = ImeAction.Done,
+                    onSubmit = submit
                 )
             }
 
             SheetSectionFooter(
-                text = "Email changes are not available yet."
+                text = "Changing your email may require verification when the live API is " +
+                    "connected."
             )
         }
     }

@@ -531,7 +531,7 @@ private fun FolderDetailVideoCard(
             )
 
             Text(
-                text = video.creatorDisplayName,
+                text = video.creator,
                 style = CentraliaType.caption.medium(),
                 color = CentraliaColors.SecondaryText,
                 maxLines = 1,

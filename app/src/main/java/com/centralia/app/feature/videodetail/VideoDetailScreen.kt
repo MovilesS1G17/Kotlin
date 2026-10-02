@@ -102,7 +102,7 @@ fun VideoDetailScreen(
                     state.video?.let { video ->
                         shareLink(
                             video.displayTitle,
-                            "${video.displayTitle} — ${video.creatorDisplayName}",
+                            "${video.displayTitle} — ${video.creator}",
                             video.sourceURL
                         )
                     }
@@ -166,7 +166,6 @@ fun VideoDetailScreen(
                                 isMutating = state.isMutating,
                                 onOpenSource = {
                                     if (!openUrl(video.sourceURL)) showsOpenFailure = true
-                                    else videoRepository.recordSourceOpened(video.id)
                                 },
                                 onEditTags = { showsTagEditor = true },
                                 onChooseFolder = { showsFolderPicker = true },
@@ -442,7 +441,7 @@ private fun VideoMetadata(
         )
 
         Text(
-            text = "${video.creatorDisplayName} · Saved $savedLabel",
+            text = "${video.creator} · Saved $savedLabel",
             style = CentraliaType.headline,
             color = CentraliaColors.SecondaryText
         )
