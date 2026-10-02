@@ -8,8 +8,11 @@ import com.centralia.app.domain.library.VideoItem
 import com.centralia.app.domain.library.VideoItemRepository
 import com.centralia.app.domain.library.VideoPlatform
 import com.centralia.app.domain.search.SearchHistoryRepository
+import com.centralia.app.domain.search.SearchRepository
 import com.centralia.app.feature.library.LoadState
 import java.util.UUID
+import kotlin.time.TimeSource
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +30,7 @@ sealed interface SearchFolderFilter {
 class SearchViewModel(
     private val videoRepository: VideoItemRepository,
     private val folderRepository: FolderRepository,
+    private val searchRepository: SearchRepository,
     private val searchHistoryRepository: SearchHistoryRepository
 ) : ViewModel() {
 
@@ -109,6 +113,9 @@ class SearchViewModel(
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
+    private var searchJob: Job? = null
+    private var hasEverLoaded = false
+
     fun load() {
         val current = _uiState.value.state
         if (current != LoadState.Idle && !current.isFailure) return
@@ -127,6 +134,7 @@ class SearchViewModel(
                         state = LoadState.Loaded
                     )
                 }
+                hasEverLoaded = true
             } catch (error: Exception) {
                 _uiState.update {
                     it.copy(state = LoadState.Failed(error.localizedMessage ?: "Please try again."))
@@ -135,9 +143,92 @@ class SearchViewModel(
         }
     }
 
+    /**
+     * Retries whatever last failed: the initial load if it never succeeded,
+     * or the last search otherwise (so "Try Again" after a failed filtered
+     * search retries that search, not a full reload).
+     */
     fun retry() {
-        _uiState.update { it.copy(state = LoadState.Idle) }
-        load()
+        if (!_uiState.value.state.isFailure) return
+        if (hasEverLoaded) {
+            performSearch()
+        } else {
+            _uiState.update { it.copy(state = LoadState.Idle) }
+            load()
+        }
+    }
+
+    /**
+     * Runs a real backend search (`GET /videos`, Specification-filtered)
+     * against whatever query/filters are currently active, measures the
+     * client-perceived latency with a monotonic clock, and — only when at
+     * least one filter or query term is active — reports it as
+     * `search_completed` without blocking the UI. The server-filtered
+     * result becomes the new `videos`; `filteredVideos` still narrows
+     * further client-side for things the backend doesn't support (multiple
+     * tags, multi-term AND matching, "Unorganized", matching tags/folder
+     * name by text).
+     */
+    fun performSearch() {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            runSearch()
+        }
+    }
+
+    private fun singleTermServerQuery(query: String): String? {
+        val trimmed = query.trim()
+        return if (trimmed.isNotEmpty() && !trimmed.contains(Regex("\\s"))) trimmed else null
+    }
+
+    private fun serverFolderID(filter: SearchFolderFilter): UUID? =
+        (filter as? SearchFolderFilter.InFolder)?.folderID
+
+    private fun serverTag(tags: Set<String>): String? = tags.singleOrNull()
+
+    private fun activeFilterCount(state: UiState): Int {
+        var count = 0
+        if (state.query.trim().isNotEmpty()) count++
+        if (state.selectedPlatform != null) count++
+        if (state.selectedCreator != null) count++
+        if (state.selectedFolder != SearchFolderFilter.All) count++
+        if (state.selectedTags.isNotEmpty()) count++
+        return count
+    }
+
+    private suspend fun runSearch() {
+        _uiState.update { it.copy(state = LoadState.Loading) }
+        val snapshot = _uiState.value
+        val start = TimeSource.Monotonic.markNow()
+
+        try {
+            val result = searchRepository.search(
+                query = singleTermServerQuery(snapshot.query),
+                platform = snapshot.selectedPlatform,
+                creator = snapshot.selectedCreator,
+                folderID = serverFolderID(snapshot.selectedFolder),
+                tag = serverTag(snapshot.selectedTags),
+                limit = null,
+                offset = 0
+            )
+            _uiState.update { it.copy(videos = result.videos, state = LoadState.Loaded) }
+
+            val filterCount = activeFilterCount(snapshot)
+            if (filterCount > 0) {
+                val durationMs = start.elapsedNow().inWholeMilliseconds.toInt()
+                searchRepository.reportSearchCompleted(
+                    durationMs = durationMs,
+                    resultCount = result.totalCount,
+                    filterCount = filterCount
+                )
+            }
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            _uiState.update {
+                it.copy(state = LoadState.Failed(error.localizedMessage ?: "Please try again."))
+            }
+        }
     }
 
     fun onQueryChange(value: String) = _uiState.update { it.copy(query = value) }
@@ -156,6 +247,8 @@ class SearchViewModel(
                 _uiState.update { it.copy(state = LoadState.Failed(error.localizedMessage ?: "")) }
             }
         }
+
+        performSearch()
     }
 
     fun selectRecentSearch(search: String) {
@@ -174,34 +267,46 @@ class SearchViewModel(
         }
     }
 
-    fun onPlatformChange(platform: VideoPlatform?) =
+    fun onPlatformChange(platform: VideoPlatform?) {
         _uiState.update { it.copy(selectedPlatform = platform) }
+        performSearch()
+    }
 
-    fun onCreatorChange(creator: String?) =
+    fun onCreatorChange(creator: String?) {
         _uiState.update { it.copy(selectedCreator = creator) }
+        performSearch()
+    }
 
-    fun onFolderFilterChange(filter: SearchFolderFilter) =
+    fun onFolderFilterChange(filter: SearchFolderFilter) {
         _uiState.update { it.copy(selectedFolder = filter) }
+        performSearch()
+    }
 
-    fun toggleTag(tag: String) = _uiState.update { current ->
-        current.copy(
-            selectedTags = if (current.selectedTags.contains(tag)) {
-                current.selectedTags - tag
-            } else {
-                current.selectedTags + tag
-            }
-        )
+    fun toggleTag(tag: String) {
+        _uiState.update { current ->
+            current.copy(
+                selectedTags = if (current.selectedTags.contains(tag)) {
+                    current.selectedTags - tag
+                } else {
+                    current.selectedTags + tag
+                }
+            )
+        }
+        performSearch()
     }
 
     fun clearTags() = _uiState.update { it.copy(selectedTags = emptySet()) }
 
-    fun clearFilters() = _uiState.update {
-        it.copy(
-            selectedPlatform = null,
-            selectedCreator = null,
-            selectedFolder = SearchFolderFilter.All,
-            selectedTags = emptySet()
-        )
+    fun clearFilters() {
+        _uiState.update {
+            it.copy(
+                selectedPlatform = null,
+                selectedCreator = null,
+                selectedFolder = SearchFolderFilter.All,
+                selectedTags = emptySet()
+            )
+        }
+        performSearch()
     }
 
     fun clearSearch() = _uiState.update {

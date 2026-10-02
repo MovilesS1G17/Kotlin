@@ -112,6 +112,7 @@ fun AuthenticatedAppScreen(
                 SearchScreen(
                     videoRepository = container.videoItemRepository,
                     folderRepository = container.folderRepository,
+                    searchRepository = container.searchRepository,
                     searchHistoryRepository = container.searchHistoryRepository,
                     revisions = container.revisions,
                     onOpenVideo = { navController.navigate(Routes.videoDetail(it.id)) }

@@ -5,6 +5,8 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import com.centralia.app.BuildConfig
+import okhttp3.Headers
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -100,6 +102,50 @@ class CentraliaApi(val tokens: SecureTokenStore, private val onSessionExpired: (
                     })
                 }
                 text
+            }
+        } catch (error: ApiException) {
+            throw error
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            throw ApiException(0, "We couldn't reach Centralia. Check your connection and try again.")
+        }
+    }
+
+    /**
+     * Like [request], but takes query params and extra headers, and returns
+     * the response [Headers] too (so callers can read `X-Total-Count`).
+     * Kept separate so every existing caller of [request] stays untouched.
+     */
+    suspend fun requestWithHeaders(
+        path: String,
+        queryParams: Map<String, String> = emptyMap(),
+        headers: Map<String, String> = emptyMap(),
+        authenticated: Boolean = true
+    ): Pair<String, Headers> = withContext(Dispatchers.IO) {
+        val urlBuilder = (BuildConfig.CENTRALIA_API_BASE_URL.trimEnd('/') + path).toHttpUrl().newBuilder()
+        queryParams.forEach { (key, value) -> urlBuilder.addQueryParameter(key, value) }
+        val builder = Request.Builder().url(urlBuilder.build()).header("Accept", "application/json")
+        headers.forEach { (key, value) -> builder.header(key, value) }
+        if (authenticated) {
+            val token = tokens.read() ?: throw ApiException(401, "Your session has expired. Please log in again.")
+            builder.header("Authorization", "Bearer $token")
+        }
+        try {
+            client.newCall(builder.build()).execute().use { response ->
+                val text = response.body?.string().orEmpty()
+                if (response.code == 401 && authenticated) {
+                    tokens.clear()
+                    onSessionExpired()
+                }
+                if (!response.isSuccessful) {
+                    val detail = runCatching { JSONObject(text).optString("detail").ifEmpty { null } }.getOrNull()
+                    throw ApiException(response.code, when (response.code) {
+                        401 -> "Your session has expired. Please log in again."
+                        else -> detail ?: "Centralia could not complete this request."
+                    })
+                }
+                text to response.headers
             }
         } catch (error: ApiException) {
             throw error

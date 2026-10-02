@@ -4,6 +4,7 @@ import android.content.Context
 import com.centralia.app.data.export.JsonLibraryExportService
 import com.centralia.app.data.network.APIAuthenticationRepository
 import com.centralia.app.data.network.APILibraryRepository
+import com.centralia.app.data.network.APISearchRepository
 import com.centralia.app.data.network.APIVideoImportPipeline
 import com.centralia.app.data.network.APIUserRepository
 import com.centralia.app.data.network.CentraliaApi
@@ -12,6 +13,7 @@ import com.centralia.app.data.mock.MockAuthenticationRepository
 import com.centralia.app.data.mock.MockDataStore
 import com.centralia.app.data.mock.MockLibraryRepository
 import com.centralia.app.data.mock.MockSearchHistoryRepository
+import com.centralia.app.data.mock.MockSearchRepository
 import com.centralia.app.data.mock.MockUserRepository
 import com.centralia.app.data.mock.MockVideoImportPipeline
 import com.centralia.app.domain.auth.AuthenticationRepository
@@ -21,6 +23,7 @@ import com.centralia.app.domain.library.VideoItemRepository
 import com.centralia.app.domain.profile.LibraryExportService
 import com.centralia.app.domain.profile.UserRepository
 import com.centralia.app.domain.search.SearchHistoryRepository
+import com.centralia.app.domain.search.SearchRepository
 
 /**
  * `final class DependencyContainer`. Constructor injection is unchanged; only the
@@ -32,6 +35,7 @@ class DependencyContainer(
     val authenticationRepository: AuthenticationRepository,
     val videoItemRepository: VideoItemRepository,
     val folderRepository: FolderRepository,
+    val searchRepository: SearchRepository,
     val searchHistoryRepository: SearchHistoryRepository,
     val userRepository: UserRepository,
     val libraryExportService: LibraryExportService,
@@ -49,6 +53,7 @@ class DependencyContainer(
                 authenticationRepository = APIAuthenticationRepository(api),
                 videoItemRepository = library,
                 folderRepository = library,
+                searchRepository = APISearchRepository(api),
                 searchHistoryRepository = MockSearchHistoryRepository(MockDataStore(context.filesDir)),
                 userRepository = user,
                 libraryExportService = JsonLibraryExportService(library, library, user, context.cacheDir),
@@ -66,6 +71,7 @@ class DependencyContainer(
                 authenticationRepository = MockAuthenticationRepository(),
                 videoItemRepository = libraryRepository,
                 folderRepository = libraryRepository,
+                searchRepository = MockSearchRepository(libraryRepository),
                 searchHistoryRepository = MockSearchHistoryRepository(store),
                 userRepository = userRepository,
                 libraryExportService = JsonLibraryExportService(

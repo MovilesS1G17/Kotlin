@@ -35,6 +35,7 @@ import com.centralia.app.domain.library.VideoItem
 import com.centralia.app.domain.library.VideoItemRepository
 import com.centralia.app.domain.library.VideoPlatform
 import com.centralia.app.domain.search.SearchHistoryRepository
+import com.centralia.app.domain.search.SearchRepository
 import com.centralia.app.feature.library.LibraryVideoCard
 import com.centralia.app.feature.library.LoadState
 import com.centralia.app.feature.library.MoveVideoSheet
@@ -64,13 +65,14 @@ import java.util.UUID
 fun SearchScreen(
     videoRepository: VideoItemRepository,
     folderRepository: FolderRepository,
+    searchRepository: SearchRepository,
     searchHistoryRepository: SearchHistoryRepository,
     revisions: LibraryRevisions,
     onOpenVideo: (VideoItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val viewModel = centraliaViewModel(key = "search") {
-        SearchViewModel(videoRepository, folderRepository, searchHistoryRepository)
+        SearchViewModel(videoRepository, folderRepository, searchRepository, searchHistoryRepository)
     }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val libraryRevision by revisions.library.collectAsStateWithLifecycle()
