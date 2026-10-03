@@ -2,7 +2,7 @@ package com.centralia.app.domain.library
 
 import java.util.UUID
 
-/** `protocol VideoItemRepository`. */
+
 interface VideoItemRepository {
     suspend fun videos(): List<VideoItem>
 
@@ -17,9 +17,12 @@ interface VideoItemRepository {
     suspend fun updateNote(id: UUID, note: String?)
 
     suspend fun updateTags(id: UUID, tags: List<String>)
+
+
+    suspend fun playback(id: UUID): VideoPlayback? = null
 }
 
-/** `protocol FolderRepository`, including the protocol-extension default. */
+
 interface FolderRepository {
     suspend fun folders(): List<LibraryFolder>
 
@@ -33,14 +36,14 @@ interface FolderRepository {
     suspend fun deleteFolder(id: UUID)
 }
 
-/** `VideoItemRepositoryError`. */
+
 sealed class VideoItemRepositoryException(message: String) : Exception(message) {
     data object DuplicateVideo : VideoItemRepositoryException(
         "This short is already in your Centralia library."
     )
 }
 
-/** `FolderRepositoryError`. */
+
 sealed class FolderRepositoryException(message: String) : Exception(message) {
     data object EmptyName : FolderRepositoryException("Enter a folder name.")
 

@@ -11,7 +11,7 @@ import java.util.UUID
 import kotlinx.coroutines.delay
 import kotlinx.serialization.Serializable
 
-/** `actor MockUserRepository`. */
+
 class MockUserRepository(
     private val store: MockDataStore,
     private val filename: String = "users-v1.json",
@@ -106,7 +106,7 @@ class MockUserRepository(
         if (current.records.none { it.profile.id == userID }) {
             throw UserRepositoryException.ProfileNotFound
         }
-        // The mock rejects this one sentinel so the failure path is testable.
+
         if (currentPassword == "wrong-password") {
             throw UserRepositoryException.IncorrectCurrentPassword
         }

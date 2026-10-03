@@ -7,7 +7,7 @@ import java.util.UUID
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-/** `MembershipStatus`. */
+
 @Serializable
 enum class MembershipStatus {
     @SerialName("centraliaMember")
@@ -28,7 +28,7 @@ data class UserProfile(
     val email: String,
     val membershipStatus: MembershipStatus
 ) {
-    /** `initials` — first letters of up to two whitespace-separated words. */
+
     val initials: String
         get() {
             val value = displayName
@@ -45,7 +45,7 @@ data class UserProfile(
         get() = AuthenticatedUser(id = id, displayName = displayName, email = email)
 }
 
-/** `NotificationPreferences`. */
+
 @Serializable
 data class NotificationPreferences(
     val organizationReminders: Boolean,
@@ -61,7 +61,7 @@ data class NotificationPreferences(
     }
 }
 
-/** `LibraryStatistics`. */
+
 data class LibraryStatistics(
     val savedCount: Int,
     val folderCount: Int,
@@ -80,7 +80,7 @@ data class LibraryStatistics(
     }
 }
 
-/** `ProfileStorageUsage`. */
+
 data class ProfileStorageUsage(
     val usedGigabytes: Double,
     val capacityGigabytes: Double
@@ -95,10 +95,7 @@ data class ProfileStorageUsage(
     val percentage: Int
         get() = Math.round(fractionUsed * 100).toInt()
 
-    /**
-     * `summary` — Swift formats used with one fraction digit and capacity with
-     * none: "2.4 GB of 5 GB (48%)".
-     */
+
     val summary: String
         get() = "%.1f GB of %.0f GB (%d%%)".format(
             usedGigabytes,

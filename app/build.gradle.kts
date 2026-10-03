@@ -16,6 +16,14 @@ android {
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // The shared Centralia backend, set with the `centraliaApiBaseUrl`
+        // Gradle property (gradle.properties or -PcentraliaApiBaseUrl=...).
+        // Default 10.0.2.2 is the host machine as seen from the emulator; on a
+        // physical phone use the computer's LAN address. Required: accounts and
+        // email verification live on the backend.
+        val apiBaseUrl = (project.findProperty("centraliaApiBaseUrl") as String?) ?: "http://10.0.2.2:8000"
+        buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
     }
 
     buildTypes {
@@ -39,6 +47,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {
@@ -64,6 +73,12 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.okhttp)
+    // Cover images of saved shorts.
+    implementation(libs.coil.compose)
+    // Native playback of the MP4 the backend prepares for each short.
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.ui)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

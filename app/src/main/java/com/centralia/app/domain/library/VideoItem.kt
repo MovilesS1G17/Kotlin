@@ -7,7 +7,7 @@ import java.util.UUID
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-/** `VideoPlatform`. `rawValue` is persisted, so the strings must not change. */
+
 @Serializable
 enum class VideoPlatform {
     @SerialName("tiktok")
@@ -33,7 +33,7 @@ enum class VideoPlatform {
             YOUTUBE_SHORT -> "YouTube Short"
         }
 
-    /** The shorter label used on the library filter chips. */
+
     val filterName: String
         get() = when (this) {
             TIKTOK -> "TikTok"
@@ -42,7 +42,7 @@ enum class VideoPlatform {
         }
 }
 
-/** `ContentAnalysisStatus`. */
+
 @Serializable
 enum class ContentAnalysisStatus {
     @SerialName("pending")
@@ -58,12 +58,7 @@ enum class ContentAnalysisStatus {
     FAILED
 }
 
-/**
- * `VideoItem`. The Swift type stores `sourceURL` as a `URL`; it is kept as a
- * `String` here because every use is either display, equality, or handing the
- * value to an `Intent`, and `java.net.URI` would reject some shortener forms
- * that `URL(string:)` accepts.
- */
+
 @Serializable
 data class VideoItem(
     @Serializable(with = UuidSerializer::class)
@@ -83,22 +78,35 @@ data class VideoItem(
     val note: String? = null,
     @Serializable(with = InstantSerializer::class)
     val savedAt: Instant,
-    val analysisStatus: ContentAnalysisStatus
+    val analysisStatus: ContentAnalysisStatus,
+
+    val thumbnailURL: String? = null,
+
+    val embedURL: String? = null
 ) {
-    /**
-     * `displayTitle` — the first non-blank of custom title, generated summary,
-     * or source caption, falling back to the creator.
-     */
+
+    val playerURL: String?
+        get() = embedURL?.nonEmptyTrimmed() ?: ShortEmbed.embedURL(sourceURL, platform)
+
+
+    val coverURL: String?
+        get() = thumbnailURL?.nonEmptyTrimmed() ?: ShortEmbed.fallbackThumbnailURL(sourceURL, platform)
+
+
     val displayTitle: String
         get() = customTitle?.nonEmptyTrimmed()
             ?: generatedSummary?.nonEmptyTrimmed()
             ?: sourceCaption?.nonEmptyTrimmed()
             ?: "Short by $creator"
 
-    /** `formattedDuration` — `String(format: "%d:%02d", minutes, seconds)`. */
+
     val formattedDuration: String
         get() = "%d:%02d".format(durationSeconds / 60, durationSeconds % 60)
+
+
+    val durationLabel: String?
+        get() = if (durationSeconds > 0) formattedDuration else null
 }
 
-/** Swift's `private extension String { var nonEmptyTrimmed: String? }`. */
+
 internal fun String.nonEmptyTrimmed(): String? = trim().ifEmpty { null }

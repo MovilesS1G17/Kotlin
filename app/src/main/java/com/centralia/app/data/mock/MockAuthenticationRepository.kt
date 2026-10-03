@@ -2,85 +2,102 @@ package com.centralia.app.data.mock
 
 import com.centralia.app.domain.auth.AuthenticatedUser
 import com.centralia.app.domain.auth.AuthenticationException
-import com.centralia.app.domain.auth.AuthenticationProvider
 import com.centralia.app.domain.auth.AuthenticationRepository
+import com.centralia.app.domain.auth.VerificationChallenge
 import java.nio.ByteBuffer
 import java.util.Locale
 import java.util.UUID
+import kotlin.random.Random
 import kotlinx.coroutines.delay
 
-/**
- * `struct MockAuthenticationRepository`. The simulated latency and the demo
- * accounts that force each failure path are preserved so the same manual test
- * cases work: `existing@example.com`, `fail@example.com`,
- * `reset-fail@example.com`.
- */
+
 class MockAuthenticationRepository(
-    private val delayMillis: Long = 650,
-    private val providerFailures: Map<AuthenticationProvider, AuthenticationException> = emptyMap()
+    private val delayMillis: Long = 650
 ) : AuthenticationRepository {
 
-    override suspend fun createAccount(email: String, password: String): AuthenticatedUser {
+    private data class Account(var password: String, var verified: Boolean)
+
+    private val accounts = mutableMapOf<String, Account>()
+    private val codes = mutableMapOf<String, String>()
+
+
+    val lastSentCode: Map<String, String> get() = codes
+
+    override suspend fun createAccount(email: String, password: String): VerificationChallenge {
         simulateWork()
-
-        if (email.equals("existing@example.com", ignoreCase = true)) {
-            throw AuthenticationException.AccountAlreadyExists
-        }
-
-        return AuthenticatedUser(
-            id = deterministicID(email),
-            displayName = displayName(email),
-            email = email
-        )
+        val key = email.lowercase(Locale.ROOT)
+        val existing = accounts[key]
+        if (existing?.verified == true) throw AuthenticationException.AccountAlreadyExists
+        accounts[key] = Account(password, verified = false)
+        return sendCode(key)
     }
 
     override suspend fun logIn(email: String, password: String): AuthenticatedUser {
         simulateWork()
-
-        if (email.equals("fail@example.com", ignoreCase = true)) {
-            throw AuthenticationException.InvalidCredentials
-        }
-
-        return AuthenticatedUser(
-            id = deterministicID(email),
-            displayName = displayName(email),
-            email = email
-        )
+        val key = email.lowercase(Locale.ROOT)
+        val account = accounts[key]
+        if (account == null || account.password != password) throw AuthenticationException.InvalidCredentials
+        if (!account.verified) throw AuthenticationException.EmailNotVerified(sendCode(key))
+        return user(key)
     }
 
-    override suspend fun authenticate(provider: AuthenticationProvider): AuthenticatedUser {
+    override suspend fun verifyEmail(email: String, code: String): AuthenticatedUser {
         simulateWork()
+        val key = email.lowercase(Locale.ROOT)
+        val account = accounts[key] ?: throw AuthenticationException.InvalidCode
+        if (codes[key] == null || codes[key] != code.filter { it.isDigit() }) {
+            throw AuthenticationException.InvalidCode
+        }
+        codes.remove(key)
+        account.verified = true
+        return user(key)
+    }
 
-        providerFailures[provider]?.let { throw it }
-
-        return AuthenticatedUser(
-            id = deterministicID(provider.rawValue),
-            displayName = "Centralia User",
-            email = "demo@${provider.rawValue}.example"
-        )
+    override suspend fun resendVerificationCode(email: String): VerificationChallenge {
+        simulateWork()
+        return sendCode(email.lowercase(Locale.ROOT))
     }
 
     override suspend fun requestPasswordReset(email: String) {
         simulateWork()
+        val key = email.lowercase(Locale.ROOT)
+        if (accounts.containsKey(key)) sendCode(key)
+    }
 
-        if (email.equals("reset-fail@example.com", ignoreCase = true)) {
-            throw AuthenticationException.ResetUnavailable
+    override suspend fun resetPassword(email: String, code: String, newPassword: String): AuthenticatedUser {
+        simulateWork()
+        val key = email.lowercase(Locale.ROOT)
+        val account = accounts[key] ?: throw AuthenticationException.InvalidCode
+        if (codes[key] == null || codes[key] != code.filter { it.isDigit() }) {
+            throw AuthenticationException.InvalidCode
         }
+        codes.remove(key)
+        account.password = newPassword
+        account.verified = true
+        return user(key)
     }
 
     override suspend fun signOut() {
         simulateWork()
     }
 
+    private fun sendCode(key: String): VerificationChallenge {
+        val code = (0 until 6).joinToString("") { Random.nextInt(10).toString() }
+        codes[key] = code
+        return VerificationChallenge(email = key, resendAvailableInSeconds = 60)
+    }
+
+    private fun user(email: String) = AuthenticatedUser(
+        id = deterministicID(email),
+        displayName = displayName(email),
+        email = email
+    )
+
     private suspend fun simulateWork() {
         if (delayMillis > 0) delay(delayMillis)
     }
 
-    /**
-     * `deterministicID(for:)` — the first 16 UTF-8 bytes of the value, zero
-     * padded, with the RFC 4122 version 4 and variant bits forced. Reproduced
-     * byte for byte so the same email yields the same profile id as on iOS.
-     */
+
     private fun deterministicID(value: String): UUID {
         val bytes = ByteArray(16)
         val source = value.toByteArray(Charsets.UTF_8)
@@ -93,11 +110,7 @@ class MockAuthenticationRepository(
         return UUID(buffer.long, buffer.long)
     }
 
-    /**
-     * `displayName(from:)` — the local part with dots and underscores turned
-     * into spaces, then capitalized the way Swift's `.capitalized` does
-     * (every word's first letter upper, the rest lower).
-     */
+
     private fun displayName(email: String): String {
         val localPart = email.substringBefore('@', missingDelimiterValue = "")
         if (localPart.isEmpty()) return "Centralia User"

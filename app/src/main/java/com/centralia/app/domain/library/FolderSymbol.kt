@@ -1,10 +1,6 @@
 package com.centralia.app.domain.library
 
-/**
- * `FolderSymbol`. The raw values stay as the original SF Symbol names because
- * they are what gets written into the folder store; [folderSymbolIcon] resolves
- * them to Material icons at render time.
- */
+
 enum class FolderSymbol(val rawValue: String, val accessibilityName: String) {
     FOLDER("folder", "Folder"),
     HOUSE("house", "Home"),
@@ -20,7 +16,7 @@ enum class FolderSymbol(val rawValue: String, val accessibilityName: String) {
     SUN("sun.max", "Wellbeing");
 
     companion object {
-        /** `FolderSymbol(rawValue:) ?? .folder`. */
+
         fun fromRawValue(rawValue: String?): FolderSymbol =
             entries.firstOrNull { it.rawValue == rawValue } ?: FOLDER
     }
