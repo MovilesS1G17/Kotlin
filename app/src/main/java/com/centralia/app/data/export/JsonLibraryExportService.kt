@@ -20,12 +20,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-/**
- * `actor JSONLibraryExportService`. The three loads run concurrently, mirroring
- * the Swift `async let` fan-out, and the document is written into a cache
- * subdirectory that [com.centralia.app.R.xml.file_paths] exposes through the
- * `FileProvider` so it can be shared out.
- */
+
 class JsonLibraryExportService(
     private val videoRepository: VideoItemRepository,
     private val folderRepository: FolderRepository,
@@ -78,7 +73,7 @@ class JsonLibraryExportService(
     }
 
     companion object {
-        /** Must match the `cache-path` in `res/xml/file_paths.xml`. */
+
         const val EXPORT_DIRECTORY_NAME = "Centralia-Exports"
 
         private val EXPORT_JSON = Json {

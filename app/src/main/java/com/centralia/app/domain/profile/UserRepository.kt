@@ -3,7 +3,7 @@ package com.centralia.app.domain.profile
 import com.centralia.app.domain.auth.AuthenticatedUser
 import java.util.UUID
 
-/** `protocol UserRepository`. */
+
 interface UserRepository {
     suspend fun profile(authenticatedUser: AuthenticatedUser): UserProfile
 
@@ -19,7 +19,7 @@ interface UserRepository {
     ): NotificationPreferences
 }
 
-/** `UserRepositoryError`. */
+
 sealed class UserRepositoryException(message: String) : Exception(message) {
     data object ProfileNotFound : UserRepositoryException(
         "Your profile could not be found. Please sign in again."

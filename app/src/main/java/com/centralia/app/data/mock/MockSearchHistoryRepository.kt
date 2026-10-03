@@ -3,7 +3,7 @@ package com.centralia.app.data.mock
 import com.centralia.app.domain.search.SearchHistoryRepository
 import kotlinx.serialization.Serializable
 
-/** `actor MockSearchHistoryRepository`. */
+
 class MockSearchHistoryRepository(
     private val store: MockDataStore,
     private val filename: String = "search-history-v1.json",

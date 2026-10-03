@@ -13,12 +13,7 @@ import java.time.Instant
 import java.util.UUID
 import kotlinx.serialization.Serializable
 
-/**
- * `actor MockLibraryRepository: VideoItemRepository, FolderRepository`.
- *
- * Every mutation goes through [MockDataStore.mutate] so the load-edit-save
- * sequence stays atomic, which is what the Swift actor guaranteed implicitly.
- */
+
 class MockLibraryRepository(
     private val store: MockDataStore,
     private val filename: String = "library-v1.json"
@@ -161,7 +156,7 @@ class MockLibraryRepository(
         return trimmedName
     }
 
-    /** Trims, drops blanks, and removes case-insensitive duplicates, order kept. */
+
     private fun normalizedTags(tags: List<String>): List<String> {
         val normalized = mutableListOf<String>()
         tags.forEach { value ->

@@ -11,10 +11,7 @@ import com.centralia.app.app.CentraliaRoot
 import com.centralia.app.ui.theme.CentraliaColors
 import com.centralia.app.ui.theme.CentraliaTheme
 
-/**
- * The single activity that hosts the whole Compose tree, standing in for the
- * SwiftUI `WindowGroup`.
- */
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()

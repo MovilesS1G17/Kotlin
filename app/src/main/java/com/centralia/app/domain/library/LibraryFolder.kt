@@ -4,7 +4,7 @@ import com.centralia.app.domain.UuidSerializer
 import java.util.UUID
 import kotlinx.serialization.Serializable
 
-/** `LibraryFolder`. */
+
 @Serializable
 data class LibraryFolder(
     @Serializable(with = UuidSerializer::class)

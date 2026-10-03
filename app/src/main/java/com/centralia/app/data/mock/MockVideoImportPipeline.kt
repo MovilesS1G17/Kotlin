@@ -8,11 +8,7 @@ import com.centralia.app.domain.library.VideoPlatform
 import java.util.Locale
 import kotlinx.coroutines.delay
 
-/**
- * `struct MockVideoImportPipeline`. URL validation, the per-platform fixtures,
- * and the DJB2 hash that picks a stable fixture for a given link are all carried
- * over, so pasting the same link produces the same metadata as on iOS.
- */
+
 class MockVideoImportPipeline(
     private val delayMillis: Long = 420
 ) : VideoImportPipeline {
@@ -106,11 +102,7 @@ class MockVideoImportPipeline(
         return matches[stableIndex(sourceURL, matches.size)]
     }
 
-    /**
-     * DJB2 over the UTF-8 bytes, modulo the fixture count. Swift's `&+` and `<<`
-     * wrap on overflow; Kotlin's `Long` arithmetic wraps the same way, and the
-     * unsigned modulo is taken with [ULong] to match `UInt64`.
-     */
+
     private fun stableIndex(value: String, upperBound: Int): Int {
         if (upperBound <= 0) return 0
         var hash = 5_381L

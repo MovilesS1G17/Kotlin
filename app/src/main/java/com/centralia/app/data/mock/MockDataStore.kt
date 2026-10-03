@@ -9,18 +9,10 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 
-/**
- * `actor MockDataStore`. The Swift actor serialises access to a JSON file in
- * Application Support; here a [Mutex] provides the same mutual exclusion and the
- * file lives in the app's private `filesDir`, which is the Android directory
- * with equivalent semantics (private to the app, backed up, not user-visible).
- *
- * All disk work is moved to [Dispatchers.IO] so callers can stay on the main
- * dispatcher exactly as the SwiftUI views `await` the actor from the main actor.
- */
+
 class MockDataStore(rootDirectory: File) {
 
-    /** `MockDataStore.StoreError`. */
+
     sealed class StoreException(message: String) : Exception(message) {
         class UnableToCreateDirectory(cause: Throwable) : StoreException(
             "Centralia could not prepare local storage: ${cause.localizedMessage ?: cause}"
@@ -53,24 +45,16 @@ class MockDataStore(rootDirectory: File) {
         explicitNulls = false
     }
 
-    /**
-     * `load(_:from:seed:)` — decodes the file, or writes and returns the seed the
-     * first time it is missing.
-     */
+
     suspend fun <T> load(serializer: KSerializer<T>, filename: String, seed: () -> T): T =
         mutex.withLock { loadLocked(serializer, filename, seed) }
 
-    /** `save(_:to:)`. */
+
     suspend fun <T> save(serializer: KSerializer<T>, value: T, filename: String) {
         mutex.withLock { saveLocked(serializer, value, filename) }
     }
 
-    /**
-     * Reads, transforms and writes back under a single lock. The Swift
-     * repositories get this for free by being actors whose methods run to
-     * completion; on Kotlin the read-modify-write has to be held together
-     * explicitly or two concurrent edits could lose one another.
-     */
+
     suspend fun <T> mutate(
         serializer: KSerializer<T>,
         filename: String,
@@ -127,8 +111,7 @@ class MockDataStore(rootDirectory: File) {
         }
 
         try {
-            // `Data.write(options: .atomic)` equivalent: write beside the target
-            // and swap, so a crash mid-write cannot truncate the library.
+
             val temporaryFile = File(file.parentFile, "${file.name}.tmp")
             temporaryFile.writeText(text)
             if (file.exists() && !file.delete()) {
