@@ -2,8 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Context-aware playback: knowing Wi-Fi vs mobile data turns on data saver. -->
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- The phone vibrates when a short finishes saving (platform/DeviceVibrator.kt). -->
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Shake to undo uses the accelerometer (platform/ShakeSensor.kt). No permission is

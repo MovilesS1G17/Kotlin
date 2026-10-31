@@ -1,7 +1,5 @@
 package com.centralia.app.app
 
-import com.centralia.app.domain.library.DeletedVideo
-import com.centralia.app.domain.library.VideoDeletion
 import com.centralia.app.domain.library.VideoItem
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -11,7 +9,7 @@ import kotlinx.coroutines.flow.asStateFlow
 class LibraryRevisions {
     private val _library = MutableStateFlow(0)
     private val _folders = MutableStateFlow(0)
-    private val _deletedVideo = MutableStateFlow<DeletedVideo?>(null)
+    private val _deletedVideo = MutableStateFlow<VideoItem?>(null)
 
 
     val library: StateFlow<Int> = _library.asStateFlow()
@@ -20,8 +18,7 @@ class LibraryRevisions {
     val folders: StateFlow<Int> = _folders.asStateFlow()
 
 
-    /** A short deleted on the detail screen, with the backend's undo pop-up. */
-    val deletedVideo: StateFlow<DeletedVideo?> = _deletedVideo.asStateFlow()
+    val deletedVideo: StateFlow<VideoItem?> = _deletedVideo.asStateFlow()
 
 
     fun libraryChanged() {
@@ -46,8 +43,8 @@ class LibraryRevisions {
     }
 
 
-    fun videoDeleted(video: VideoItem, deletion: VideoDeletion) {
-        _deletedVideo.value = DeletedVideo(video, deletion)
+    fun videoDeleted(video: VideoItem) {
+        _deletedVideo.value = video
         _library.value += 1
         _folders.value += 1
     }
