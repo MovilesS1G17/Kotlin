@@ -5,12 +5,16 @@ import androidx.lifecycle.viewModelScope
 import com.centralia.app.domain.library.FolderRepository
 import com.centralia.app.domain.library.LibraryFolder
 import com.centralia.app.domain.library.TextMatch
+import com.centralia.app.domain.library.UndoMethod
+import com.centralia.app.domain.library.VideoDeletion
 import com.centralia.app.domain.library.VideoItem
 import com.centralia.app.domain.library.VideoItemRepository
 import com.centralia.app.domain.library.VideoPlatform
 import com.centralia.app.domain.search.SearchHistoryRepository
 import com.centralia.app.feature.library.LoadState
 import java.util.UUID
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,6 +41,8 @@ class SearchViewModel(
         val folders: List<LibraryFolder> = emptyList(),
         val recentSearches: List<String> = emptyList(),
         val recentlyDeletedVideo: VideoItem? = null,
+        /** Shake to undo: the pop-up the backend sent for [recentlyDeletedVideo]. */
+        val undoDeletion: VideoDeletion? = null,
         val query: String = "",
         val selectedPlatform: VideoPlatform? = null,
         val selectedCreator: String? = null,
@@ -114,9 +120,13 @@ class SearchViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(state = LoadState.Loading) }
             try {
-                val videos = videoRepository.videos()
-                val folders = folderRepository.folders()
-                val recentSearches = searchHistoryRepository.recentSearches()
+                // Multithreading (Sprint 3): the three requests run at the same time.
+                val (videos, folders, recentSearches) = coroutineScope {
+                    val videos = async { videoRepository.videos() }
+                    val folders = async { folderRepository.folders() }
+                    val recentSearches = async { searchHistoryRepository.recentSearches() }
+                    Triple(videos.await(), folders.await(), recentSearches.await())
+                }
                 _uiState.update {
                     it.copy(
                         videos = videos,
@@ -143,9 +153,13 @@ class SearchViewModel(
 
         viewModelScope.launch {
             try {
-                val videos = videoRepository.videos()
-                val folders = folderRepository.folders()
-                val recentSearches = searchHistoryRepository.recentSearches()
+                // Multithreading (Sprint 3): the three requests run at the same time.
+                val (videos, folders, recentSearches) = coroutineScope {
+                    val videos = async { videoRepository.videos() }
+                    val folders = async { folderRepository.folders() }
+                    val recentSearches = async { searchHistoryRepository.recentSearches() }
+                    Triple(videos.await(), folders.await(), recentSearches.await())
+                }
                 _uiState.update {
                     it.copy(videos = videos, folders = folders, recentSearches = recentSearches)
                 }
@@ -237,11 +251,12 @@ class SearchViewModel(
     fun delete(video: VideoItem) {
         viewModelScope.launch {
             try {
-                videoRepository.deleteVideo(video.id)
+                val deletion = videoRepository.deleteVideo(video.id)
                 _uiState.update {
                     it.copy(
                         videos = it.videos.filterNot { item -> item.id == video.id },
-                        recentlyDeletedVideo = video
+                        recentlyDeletedVideo = video,
+                        undoDeletion = deletion
                     )
                 }
             } catch (error: Exception) {
@@ -250,12 +265,14 @@ class SearchViewModel(
         }
     }
 
-    fun undoDelete() {
+    fun undoDelete(method: UndoMethod = UndoMethod.BUTTON) {
         val video = _uiState.value.recentlyDeletedVideo ?: return
+        // Close the pop-up right away so a second shake can't restore twice.
+        _uiState.update { it.copy(recentlyDeletedVideo = null, undoDeletion = null) }
 
         viewModelScope.launch {
             try {
-                videoRepository.restoreVideo(video)
+                videoRepository.restoreVideo(video, method)
                 _uiState.update {
                     it.copy(
                         videos = (it.videos + video).sortedByDescending { item -> item.savedAt },
@@ -268,13 +285,14 @@ class SearchViewModel(
         }
     }
 
-    fun dismissUndo() = _uiState.update { it.copy(recentlyDeletedVideo = null) }
+    fun dismissUndo() = _uiState.update { it.copy(recentlyDeletedVideo = null, undoDeletion = null) }
 
-    fun registerDeleted(video: VideoItem) {
+    fun registerDeleted(video: VideoItem, deletion: VideoDeletion = VideoDeletion.local(video.id)) {
         _uiState.update {
             it.copy(
                 videos = it.videos.filterNot { item -> item.id == video.id },
-                recentlyDeletedVideo = video
+                recentlyDeletedVideo = video,
+                undoDeletion = deletion
             )
         }
     }

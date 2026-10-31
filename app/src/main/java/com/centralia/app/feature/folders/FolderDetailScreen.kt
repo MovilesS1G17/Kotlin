@@ -36,7 +36,9 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.centralia.app.app.LibraryRevisions
 import com.centralia.app.domain.library.FolderRepository
+import com.centralia.app.domain.library.VideoDeletion
 import com.centralia.app.domain.library.VideoItem
 import com.centralia.app.domain.library.VideoItemRepository
 import com.centralia.app.feature.library.DurationBadge
@@ -58,7 +60,7 @@ import com.centralia.app.ui.components.CentraliaSheet
 import com.centralia.app.ui.components.CentraliaTextButton
 import com.centralia.app.ui.components.CenteredContent
 import com.centralia.app.ui.components.ContentUnavailable
-import com.centralia.app.ui.components.LibraryUndoToast
+import com.centralia.app.ui.components.ShakeToUndoPopup
 import com.centralia.app.ui.components.MenuActionItem
 import com.centralia.app.ui.components.MenuSelectionItem
 import com.centralia.app.ui.components.ProminentAction
@@ -89,7 +91,8 @@ fun FolderDetailScreen(
     onFolderChanged: () -> Unit,
     onOpenVideo: (VideoItem) -> Unit,
     onPlayVideo: (VideoItem) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    revisions: LibraryRevisions? = null
 ) {
     val viewModel = centraliaViewModel(key = "folderDetail-$folderID") {
         FolderDetailViewModel(folderID, videoRepository, folderRepository)
@@ -103,6 +106,16 @@ fun FolderDetailScreen(
     var showsDeleteFolderConfirmation by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { viewModel.load() }
+
+    // A delete performed on the pushed detail screen shows its undo pop-up here,
+    // like the Library and Search tabs (iOS registers it the same way).
+    val deletedElsewhere = revisions?.deletedVideo?.collectAsStateWithLifecycle()?.value
+    LaunchedEffect(deletedElsewhere) {
+        deletedElsewhere?.let { deleted ->
+            viewModel.registerDeleted(deleted.video, deleted.deletion)
+            revisions?.consumeDeletedVideo()
+        }
+    }
 
     val folderName = state.folder?.name ?: ""
 
@@ -282,9 +295,11 @@ fun FolderDetailScreen(
         }
 
         if (state.recentlyDeletedVideo != null) {
-            LibraryUndoToast(
-                modifier = Modifier.align(Alignment.BottomCenter),
-                onUndo = { viewModel.undoDelete(onFolderChanged) },
+            // Shake to undo: the pop-up the backend sent with the delete.
+            ShakeToUndoPopup(
+                message = state.undoDeletion?.undoMessage ?: VideoDeletion.DEFAULT_UNDO_MESSAGE,
+                expiresAt = state.undoDeletion?.undoExpiresAt,
+                onUndo = { method -> viewModel.undoDelete(onFolderChanged, method) },
                 onDismiss = viewModel::dismissUndo
             )
         }

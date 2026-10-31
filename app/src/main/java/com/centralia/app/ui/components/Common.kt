@@ -19,6 +19,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -28,12 +31,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.centralia.app.domain.library.UndoMethod
 import com.centralia.app.platform.OnShake
 import com.centralia.app.ui.theme.CentraliaColors
 import com.centralia.app.ui.theme.CentraliaType
 import com.centralia.app.ui.theme.Spacing
 import com.centralia.app.ui.theme.bold
 import com.centralia.app.ui.theme.semibold
+import java.time.Duration
+import java.time.Instant
+import kotlinx.coroutines.delay
 
 /** SwiftUI's `Capsule()`. */
 val CapsuleShape: Shape = RoundedCornerShape(percent = 50)
@@ -257,65 +264,66 @@ fun CentraliaAlert(
 }
 
 /**
- * `LibraryUndoToast` — pinned above the bottom inset by
- * `.safeAreaInset(edge: .bottom)` on iOS; the screens place it in a Box aligned
- * to the bottom instead.
+ * Shake to undo: the pop-up shown after any short is deleted (Library, Search,
+ * a folder or the detail screen). The text comes from the backend's answer to
+ * the delete ("If you want to undo the delete, just shake the phone."). While
+ * it is up the accelerometer listens: shaking undoes the delete, like the Undo
+ * button. It closes by itself when the backend's undo window ends. Mirrors
+ * `ShakeToUndoPopup` in the iOS app.
  */
 @Composable
-fun LibraryUndoToast(
-    modifier: Modifier = Modifier,
-    onUndo: () -> Unit,
+fun ShakeToUndoPopup(
+    message: String,
+    expiresAt: Instant?,
+    onUndo: (UndoMethod) -> Unit,
     onDismiss: () -> Unit
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = Spacing.medium)
-            .padding(bottom = Spacing.small)
-            .defaultMinSize(minHeight = 52.dp)
-            .background(CentraliaColors.Ink, CapsuleShape)
-            .padding(horizontal = Spacing.medium, vertical = 6.dp)
-    ) {
-        // Sensor feature: shaking the phone while this toast is up undoes the delete.
-        OnShake(onShake = onUndo)
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "Video removed",
-                style = CentraliaType.subheadline.semibold(),
-                color = Color.White
-            )
-            Text(
-                text = "Shake to undo",
-                style = CentraliaType.caption,
-                color = Color.White.copy(alpha = 0.75f)
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
-                .centraliaPressable(onClick = onUndo),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(text = "Undo", style = CentraliaType.subheadline.bold(), color = Color.White)
-        }
-
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .centraliaPressable(onClickLabel = "Dismiss", onClick = onDismiss),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = CentraliaIcons.Close,
-                contentDescription = null,
-                tint = Color.White
-            )
-        }
+    val currentOnDismiss by rememberUpdatedState(onDismiss)
+    LaunchedEffect(expiresAt) {
+        val until = expiresAt ?: return@LaunchedEffect
+        delay(Duration.between(Instant.now(), until).toMillis().coerceAtLeast(0))
+        currentOnDismiss()
     }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = CentraliaColors.Surface,
+        icon = {
+            Icon(
+                imageVector = CentraliaIcons.Delete,
+                contentDescription = null,
+                tint = CentraliaColors.Ink
+            )
+        },
+        title = {
+            Text(
+                text = "Video deleted",
+                style = CentraliaType.headline,
+                color = CentraliaColors.Ink,
+                textAlign = TextAlign.Center
+            )
+        },
+        text = {
+            // Sensor feature: shaking the phone while the pop-up is up undoes the delete.
+            OnShake(onShake = { onUndo(UndoMethod.SHAKE) })
+            Text(
+                text = message,
+                style = CentraliaType.subheadline,
+                color = CentraliaColors.SecondaryText,
+                textAlign = TextAlign.Center
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onUndo(UndoMethod.BUTTON) }) {
+                Text(text = "Undo", style = CentraliaType.headline, color = CentraliaColors.Ink)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = "Dismiss", style = CentraliaType.body, color = CentraliaColors.SecondaryText)
+            }
+        }
+    )
 }
 
 /** A hairline rule, matching SwiftUI's `Divider()` against the warm palette. */

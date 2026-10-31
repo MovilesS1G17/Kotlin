@@ -4,10 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.centralia.app.domain.library.FolderRepository
 import com.centralia.app.domain.library.LibraryFolder
+import com.centralia.app.domain.library.UndoMethod
+import com.centralia.app.domain.library.VideoDeletion
 import com.centralia.app.domain.library.VideoItem
 import com.centralia.app.domain.library.VideoItemRepository
 import com.centralia.app.domain.library.VideoPlatform
 import java.util.UUID
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -71,6 +75,8 @@ class LibraryViewModel(
         val videos: List<VideoItem> = emptyList(),
         val folders: List<LibraryFolder> = emptyList(),
         val recentlyDeletedVideo: VideoItem? = null,
+        /** Shake to undo: the pop-up the backend sent for [recentlyDeletedVideo]. */
+        val undoDeletion: VideoDeletion? = null,
         val selectedFilter: LibrarySourceFilter = LibrarySourceFilter.All
     ) {
         val filteredVideos: List<VideoItem>
@@ -88,8 +94,12 @@ class LibraryViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(state = LoadState.Loading) }
             try {
-                val videos = videoRepository.videos()
-                val folders = folderRepository.folders()
+                // Multithreading (Sprint 3): both requests run at the same time.
+                val (videos, folders) = coroutineScope {
+                    val videos = async { videoRepository.videos() }
+                    val folders = async { folderRepository.folders() }
+                    videos.await() to folders.await()
+                }
                 _uiState.update {
                     it.copy(videos = videos, folders = folders, state = LoadState.Loaded)
                 }
@@ -112,8 +122,12 @@ class LibraryViewModel(
 
         viewModelScope.launch {
             try {
-                val videos = videoRepository.videos()
-                val folders = folderRepository.folders()
+                // Multithreading (Sprint 3): both requests run at the same time.
+                val (videos, folders) = coroutineScope {
+                    val videos = async { videoRepository.videos() }
+                    val folders = async { folderRepository.folders() }
+                    videos.await() to folders.await()
+                }
                 _uiState.update { it.copy(videos = videos, folders = folders) }
             } catch (_: Exception) {
                 // Keep showing what is already on screen.
@@ -132,11 +146,12 @@ class LibraryViewModel(
     fun delete(video: VideoItem) {
         viewModelScope.launch {
             try {
-                videoRepository.deleteVideo(video.id)
+                val deletion = videoRepository.deleteVideo(video.id)
                 _uiState.update {
                     it.copy(
                         videos = it.videos.filterNot { item -> item.id == video.id },
-                        recentlyDeletedVideo = video
+                        recentlyDeletedVideo = video,
+                        undoDeletion = deletion
                     )
                 }
             } catch (error: Exception) {
@@ -145,12 +160,14 @@ class LibraryViewModel(
         }
     }
 
-    fun undoDelete() {
+    fun undoDelete(method: UndoMethod = UndoMethod.BUTTON) {
         val video = _uiState.value.recentlyDeletedVideo ?: return
+        // Close the pop-up right away so a second shake can't restore twice.
+        _uiState.update { it.copy(recentlyDeletedVideo = null, undoDeletion = null) }
 
         viewModelScope.launch {
             try {
-                videoRepository.restoreVideo(video)
+                videoRepository.restoreVideo(video, method)
                 _uiState.update {
                     it.copy(
                         videos = (it.videos + video).sortedByDescending { item -> item.savedAt },
@@ -163,7 +180,7 @@ class LibraryViewModel(
         }
     }
 
-    fun dismissUndo() = _uiState.update { it.copy(recentlyDeletedVideo = null) }
+    fun dismissUndo() = _uiState.update { it.copy(recentlyDeletedVideo = null, undoDeletion = null) }
 
     /** `apply(_:)` — folds an edit made on the detail screen back into the list. */
     fun apply(video: VideoItem) {
@@ -178,11 +195,12 @@ class LibraryViewModel(
         }
     }
 
-    fun registerDeleted(video: VideoItem) {
+    fun registerDeleted(video: VideoItem, deletion: VideoDeletion = VideoDeletion.local(video.id)) {
         _uiState.update {
             it.copy(
                 videos = it.videos.filterNot { item -> item.id == video.id },
-                recentlyDeletedVideo = video
+                recentlyDeletedVideo = video,
+                undoDeletion = deletion
             )
         }
     }
