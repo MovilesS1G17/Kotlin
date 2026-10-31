@@ -6,6 +6,8 @@ import com.centralia.app.domain.library.FolderRepository
 import com.centralia.app.domain.library.FolderRepositoryException
 import com.centralia.app.domain.library.LibraryFolder
 import com.centralia.app.domain.library.TextMatch
+import com.centralia.app.domain.library.UndoMethod
+import com.centralia.app.domain.library.VideoDeletion
 import com.centralia.app.domain.library.VideoItem
 import com.centralia.app.domain.library.VideoItemRepository
 import com.centralia.app.feature.library.LibrarySourceFilter
@@ -45,6 +47,8 @@ class FolderDetailViewModel(
         val videos: List<VideoItem> = emptyList(),
         val folders: List<LibraryFolder> = emptyList(),
         val recentlyDeletedVideo: VideoItem? = null,
+        /** Shake to undo: the pop-up the backend sent for [recentlyDeletedVideo]. */
+        val undoDeletion: VideoDeletion? = null,
         val failureMessage: String? = null,
         val query: String = "",
         val selectedSourceFilter: LibrarySourceFilter = LibrarySourceFilter.All,
@@ -180,11 +184,12 @@ class FolderDetailViewModel(
     fun delete(video: VideoItem, onChanged: () -> Unit) {
         viewModelScope.launch {
             try {
-                videoRepository.deleteVideo(video.id)
+                val deletion = videoRepository.deleteVideo(video.id)
                 _uiState.update {
                     it.copy(
                         videos = it.videos.filterNot { item -> item.id == video.id },
-                        recentlyDeletedVideo = video
+                        recentlyDeletedVideo = video,
+                        undoDeletion = deletion
                     ).reconcileSelectedTags()
                 }
                 onChanged()
@@ -194,12 +199,14 @@ class FolderDetailViewModel(
         }
     }
 
-    fun undoDelete(onChanged: () -> Unit) {
+    fun undoDelete(onChanged: () -> Unit, method: UndoMethod = UndoMethod.BUTTON) {
         val video = _uiState.value.recentlyDeletedVideo ?: return
+        // Close the pop-up right away so a second shake can't restore twice.
+        _uiState.update { it.copy(recentlyDeletedVideo = null, undoDeletion = null) }
 
         viewModelScope.launch {
             try {
-                videoRepository.restoreVideo(video)
+                videoRepository.restoreVideo(video, method)
                 _uiState.update {
                     it.copy(
                         videos = it.videos + video,
@@ -213,13 +220,14 @@ class FolderDetailViewModel(
         }
     }
 
-    fun dismissUndo() = _uiState.update { it.copy(recentlyDeletedVideo = null) }
+    fun dismissUndo() = _uiState.update { it.copy(recentlyDeletedVideo = null, undoDeletion = null) }
 
-    fun registerDeleted(video: VideoItem) {
+    fun registerDeleted(video: VideoItem, deletion: VideoDeletion = VideoDeletion.local(video.id)) {
         _uiState.update {
             it.copy(
                 videos = it.videos.filterNot { item -> item.id == video.id },
-                recentlyDeletedVideo = video
+                recentlyDeletedVideo = video,
+                undoDeletion = deletion
             ).reconcileSelectedTags()
         }
     }

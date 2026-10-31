@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.centralia.app.app.LibraryRevisions
 import com.centralia.app.domain.library.FolderRepository
+import com.centralia.app.domain.library.VideoDeletion
 import com.centralia.app.domain.library.VideoItem
 import com.centralia.app.domain.library.VideoItemRepository
 import com.centralia.app.domain.library.VideoPlatform
@@ -48,7 +49,7 @@ import com.centralia.app.ui.components.CentraliaSearchField
 import com.centralia.app.ui.components.CentraliaTextButton
 import com.centralia.app.ui.components.CenteredContent
 import com.centralia.app.ui.components.ContentUnavailable
-import com.centralia.app.ui.components.LibraryUndoToast
+import com.centralia.app.ui.components.ShakeToUndoPopup
 import com.centralia.app.ui.components.MenuActionItem
 import com.centralia.app.ui.components.MenuSelectionItem
 import com.centralia.app.ui.components.ProminentAction
@@ -86,8 +87,8 @@ fun SearchScreen(
     }
 
     LaunchedEffect(deletedElsewhere) {
-        deletedElsewhere?.let { video ->
-            viewModel.registerDeleted(video)
+        deletedElsewhere?.let { deleted ->
+            viewModel.registerDeleted(deleted.video, deleted.deletion)
             revisions.consumeDeletedVideo()
         }
     }
@@ -238,9 +239,11 @@ fun SearchScreen(
         }
 
         if (state.recentlyDeletedVideo != null) {
-            LibraryUndoToast(
-                modifier = Modifier.align(Alignment.BottomCenter),
-                onUndo = viewModel::undoDelete,
+            // Shake to undo: the pop-up the backend sent with the delete.
+            ShakeToUndoPopup(
+                message = state.undoDeletion?.undoMessage ?: VideoDeletion.DEFAULT_UNDO_MESSAGE,
+                expiresAt = state.undoDeletion?.undoExpiresAt,
+                onUndo = { method -> viewModel.undoDelete(method) },
                 onDismiss = viewModel::dismissUndo
             )
         }
