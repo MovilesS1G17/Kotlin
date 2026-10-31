@@ -8,9 +8,11 @@ interface VideoItemRepository {
 
     suspend fun saveVideo(video: VideoItem)
 
-    suspend fun deleteVideo(id: UUID)
+    /** Soft delete; the answer carries the shake-to-undo pop-up. */
+    suspend fun deleteVideo(id: UUID): VideoDeletion
 
-    suspend fun restoreVideo(video: VideoItem)
+    /** Undo a delete; [method] tells the backend whether it was a shake or the button. */
+    suspend fun restoreVideo(video: VideoItem, method: UndoMethod = UndoMethod.BUTTON)
 
     suspend fun moveVideo(id: UUID, folderID: UUID?)
 
