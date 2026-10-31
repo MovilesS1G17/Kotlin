@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -37,6 +38,7 @@ import com.centralia.app.feature.search.SearchScreen
 import com.centralia.app.feature.smartorg.SmartOrganizationScreen
 import com.centralia.app.feature.videodetail.VideoDetailScreen
 import com.centralia.app.ui.components.CentraliaIcons
+import com.centralia.app.ui.components.OfflineBanner
 import com.centralia.app.ui.theme.CentraliaColors
 import com.centralia.app.ui.theme.CentraliaType
 import java.util.UUID
@@ -86,10 +88,15 @@ fun AuthenticatedAppScreen(
     val currentRoute = backStackEntry?.destination?.route
     val showsBottomBar = currentRoute in topLevelRoutes
 
+    val isOnline by container.isOnline.collectAsStateWithLifecycle()
+    val pendingChanges by container.pendingChanges.collectAsStateWithLifecycle()
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = CentraliaColors.Canvas,
         contentColor = CentraliaColors.Ink,
+        // Eventual connectivity (Sprint 3): offline banner over every screen.
+        topBar = { OfflineBanner(isOnline = isOnline, pendingChanges = pendingChanges) },
         bottomBar = {
             if (showsBottomBar) {
                 CentraliaBottomBar(
@@ -235,7 +242,8 @@ fun AuthenticatedAppScreen(
                             container.revisions.foldersChanged()
                         },
                         onOpenVideo = { navController.navigate(Routes.videoDetail(it.id)) },
-                        onPlayVideo = { navController.navigate(Routes.videoDetail(it.id, autoplay = true)) }
+                        onPlayVideo = { navController.navigate(Routes.videoDetail(it.id, autoplay = true)) },
+                        revisions = container.revisions
                     )
                 }
             }
