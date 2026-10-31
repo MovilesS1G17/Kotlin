@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.centralia.app.domain.library.FolderRepository
 import com.centralia.app.domain.library.PlayerSource
+import com.centralia.app.domain.library.VideoDeletion
 import com.centralia.app.domain.library.VideoItem
 import com.centralia.app.domain.library.VideoItemRepository
 import com.centralia.app.domain.library.VideoPlatform
@@ -79,7 +80,7 @@ fun VideoDetailScreen(
     folderRepository: FolderRepository,
     onBack: () -> Unit,
     onVideoChanged: () -> Unit,
-    onVideoDeleted: (VideoItem) -> Unit,
+    onVideoDeleted: (VideoItem, VideoDeletion) -> Unit,
     modifier: Modifier = Modifier,
     autoplay: Boolean = false
 ) {
@@ -116,10 +117,13 @@ fun VideoDetailScreen(
     LaunchedEffect(isPlaying, state.video != null) {
         val video = state.video ?: return@LaunchedEffect
         if (isPlaying) {
-            viewModel.preparePlayback(onNothingToPlay = {
-                isPlaying = false
-                if (!openUrl(video.sourceURL)) showsOpenFailure = true
-            })
+            viewModel.preparePlayback(
+                onNothingToPlay = {
+                    isPlaying = false
+                    if (!openUrl(video.sourceURL)) showsOpenFailure = true
+                },
+                onOffline = { isPlaying = false }
+            )
         } else {
             viewModel.stopPlayback()
         }
@@ -193,6 +197,9 @@ fun VideoDetailScreen(
                                     if (!openUrl(video.sourceURL)) showsOpenFailure = true
                                 }
                             )
+
+                            // Context-aware playback: on mobile data the backend picks data saver.
+                            state.dataSaverNotice?.let { notice -> DataSaverNotice(notice) }
 
                             VideoMetadata(video = video, folderName = state.folderName)
 
@@ -297,8 +304,8 @@ fun VideoDetailScreen(
             isDestructive = true,
             onConfirm = {
                 showsDeleteConfirmation = false
-                viewModel.deleteVideo { deleted ->
-                    onVideoDeleted(deleted)
+                viewModel.deleteVideo { deleted, deletion ->
+                    onVideoDeleted(deleted, deletion)
                     onBack()
                 }
             },
@@ -410,6 +417,20 @@ private fun VideoDetailTopBar(
  * a play button. Playing swaps it for the platform's player at the short's own
  * 9:16 shape; Instagram's embed adds a header and caption, so it gets more height.
  */
+/** Context-aware playback: tells the user the short is in data saver mode. */
+@Composable
+private fun DataSaverNotice(notice: String) {
+    Text(
+        text = notice,
+        style = CentraliaType.caption,
+        color = CentraliaColors.SecondaryText,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(CentraliaColors.SoftSurface, RoundedCornerShape(8.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    )
+}
+
 @Composable
 private fun VideoPreview(
     video: VideoItem,

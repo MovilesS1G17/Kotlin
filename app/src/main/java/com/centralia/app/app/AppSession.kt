@@ -36,6 +36,9 @@ class AppSession {
 
     private var visit = 0
 
+    /** Runs on sign-out; the container uses it to clear the offline copy (Sprint 3). */
+    var onSignOut: (() -> Unit)? = null
+
     fun showSignUp() {
         _phase.value = Phase.Unauthenticated(AuthenticationDestination.SIGN_UP, visit)
     }
@@ -59,6 +62,7 @@ class AppSession {
     }
 
     fun signOut() {
+        onSignOut?.invoke()
         visit += 1
         _phase.value = Phase.Unauthenticated(AuthenticationDestination.LOG_IN, visit)
     }
