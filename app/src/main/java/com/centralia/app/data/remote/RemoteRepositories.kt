@@ -1,6 +1,7 @@
 package com.centralia.app.data.remote
 
 import com.centralia.app.data.remote.ApiClient.Method
+import com.centralia.app.data.local.PendingAction
 import com.centralia.app.domain.UuidSerializer
 import com.centralia.app.domain.auth.AuthenticatedUser
 import com.centralia.app.domain.auth.AuthenticationException
@@ -8,8 +9,11 @@ import com.centralia.app.domain.auth.AuthenticationRepository
 import com.centralia.app.domain.auth.VerificationChallenge
 import com.centralia.app.domain.imports.ImportedVideoMetadata
 import com.centralia.app.domain.imports.VideoImportPipeline
+import com.centralia.app.domain.context.NetworkType
 import com.centralia.app.domain.library.FolderRepository
 import com.centralia.app.domain.library.LibraryFolder
+import com.centralia.app.domain.library.UndoMethod
+import com.centralia.app.domain.library.VideoDeletion
 import com.centralia.app.domain.library.VideoItem
 import com.centralia.app.domain.library.VideoPlayback
 import com.centralia.app.domain.library.VideoItemRepository
@@ -153,7 +157,11 @@ class RemoteAuthenticationRepository(private val client: ApiClient) : Authentica
 // ------------------------------------------------------------------ library
 
 
-class RemoteLibraryRepository(private val client: ApiClient) : VideoItemRepository, FolderRepository {
+class RemoteLibraryRepository(
+    private val client: ApiClient,
+    /** Context-aware playback: the phone's current network, sent with /playback. */
+    private val networkType: () -> NetworkType = { NetworkType.UNKNOWN }
+) : VideoItemRepository, FolderRepository {
 
     override suspend fun videos(): List<VideoItem> =
         client.send(Method.GET, "v1/videos", ListSerializer(VideoItem.serializer()))
@@ -165,13 +173,15 @@ class RemoteLibraryRepository(private val client: ApiClient) : VideoItemReposito
         )
     }
 
-    override suspend fun deleteVideo(id: UUID) {
-        client.execute(Method.DELETE, "v1/videos/$id")
-    }
+    override suspend fun deleteVideo(id: UUID): VideoDeletion =
+        client.send(Method.DELETE, "v1/videos/$id", VideoDeletion.serializer())
 
 
-    override suspend fun restoreVideo(video: VideoItem) {
-        client.send(Method.POST, "v1/videos/${video.id}/restore", VideoItem.serializer())
+    override suspend fun restoreVideo(video: VideoItem, method: UndoMethod) {
+        client.send(
+            Method.POST, "v1/videos/${video.id}/restore", VideoItem.serializer(),
+            headers = mapOf("X-Undo-Method" to method.wireValue)
+        )
     }
 
 
@@ -190,12 +200,46 @@ class RemoteLibraryRepository(private val client: ApiClient) : VideoItemReposito
     }
 
     override suspend fun playback(id: UUID): VideoPlayback {
-        val playback = client.send(Method.GET, "v1/videos/$id/playback", VideoPlayback.serializer())
+        val playback = client.send(
+            Method.GET, "v1/videos/$id/playback", VideoPlayback.serializer(),
+            query = mapOf("network" to networkType().wireValue)
+        )
         return playback.copy(streamURL = playback.streamURL?.let(client::absoluteUrl))
     }
 
-    private suspend fun patchVideo(id: UUID, body: kotlinx.serialization.json.JsonObject) {
-        client.send(Method.PATCH, "v1/videos/$id", VideoItem.serializer(), body = body)
+    private suspend fun patchVideo(
+        id: UUID,
+        body: kotlinx.serialization.json.JsonObject,
+        headers: Map<String, String> = emptyMap()
+    ) {
+        client.send(Method.PATCH, "v1/videos/$id", VideoItem.serializer(), body = body, headers = headers)
+    }
+
+    /**
+     * Eventual connectivity: sends a change that was made offline. `X-Queued-At`
+     * tells the backend when the user made it, for the sync-delay question.
+     */
+    suspend fun replay(action: PendingAction) {
+        val queued = mapOf("X-Queued-At" to action.queuedAt.toString())
+        val id = action.videoID
+        when (action) {
+            is PendingAction.Delete ->
+                client.send(Method.DELETE, "v1/videos/$id", VideoDeletion.serializer(), headers = queued)
+            is PendingAction.Restore ->
+                client.send(
+                    Method.POST, "v1/videos/$id/restore", VideoItem.serializer(),
+                    headers = queued + ("X-Undo-Method" to action.method.wireValue)
+                )
+            is PendingAction.Move -> patchVideo(id, buildJsonObject {
+                put("folderID", action.folderID?.let { JsonPrimitive(it.toString()) } ?: JsonNull)
+            }, queued)
+            is PendingAction.Note -> patchVideo(id, buildJsonObject {
+                put("note", action.note?.let { JsonPrimitive(it) } ?: JsonNull)
+            }, queued)
+            is PendingAction.Tags -> patchVideo(id, buildJsonObject {
+                put("tags", JsonArray(action.tags.map { JsonPrimitive(it) }))
+            }, queued)
+        }
     }
 
     override suspend fun folders(): List<LibraryFolder> =

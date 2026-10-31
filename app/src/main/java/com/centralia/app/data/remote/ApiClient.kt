@@ -40,6 +40,10 @@ class ApiException(
             "Centralia can’t reach the server. Check your connection and try again."
         )
 
+        /** Eventual connectivity: the request never reached the server (no network). */
+        fun isOffline(error: Throwable): Boolean =
+            error is ApiException && error.code == "unreachable"
+
         fun unexpectedResponse() = ApiException(
             0,
             "unexpected_response",
@@ -92,9 +96,10 @@ class ApiClient(
         responseSerializer: KSerializer<T>,
         body: JsonElement? = null,
         query: Map<String, String> = emptyMap(),
-        authenticated: Boolean = true
+        authenticated: Boolean = true,
+        headers: Map<String, String> = emptyMap()
     ): T {
-        val text = perform(method, path, body, query, authenticated)
+        val text = perform(method, path, body, query, authenticated, headers)
         return try {
             json.decodeFromString(responseSerializer, text)
         } catch (error: Exception) {
@@ -107,9 +112,10 @@ class ApiClient(
         method: Method,
         path: String,
         body: JsonElement? = null,
-        authenticated: Boolean = true
+        authenticated: Boolean = true,
+        headers: Map<String, String> = emptyMap()
     ) {
-        perform(method, path, body, emptyMap(), authenticated)
+        perform(method, path, body, emptyMap(), authenticated, headers)
     }
 
 
@@ -126,7 +132,8 @@ class ApiClient(
         path: String,
         body: JsonElement?,
         query: Map<String, String>,
-        authenticated: Boolean
+        authenticated: Boolean,
+        headers: Map<String, String> = emptyMap()
     ): String {
         val url = baseUrl.newBuilder()
             .addPathSegments(path.trimStart('/'))
@@ -146,6 +153,8 @@ class ApiClient(
             // Lets the backend tell the Android and iPhone sessions apart.
             .header("X-Client-Platform", "android")
             .method(method.name, requestBody)
+            // Extra headers, e.g. X-Queued-At when an offline change is synced later.
+            .apply { headers.forEach { (name, value) -> header(name, value) } }
             .apply {
                 val token = tokenStore.token
                 if (authenticated && token != null) header("Authorization", "Bearer $token")

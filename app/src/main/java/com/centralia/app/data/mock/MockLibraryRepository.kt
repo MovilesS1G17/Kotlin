@@ -5,10 +5,12 @@ import com.centralia.app.domain.library.FolderRepository
 import com.centralia.app.domain.library.FolderRepositoryException
 import com.centralia.app.domain.library.FolderSymbol
 import com.centralia.app.domain.library.LibraryFolder
+import com.centralia.app.domain.library.VideoDeletion
 import com.centralia.app.domain.library.VideoItem
 import com.centralia.app.domain.library.VideoItemRepository
 import com.centralia.app.domain.library.VideoItemRepositoryException
 import com.centralia.app.domain.library.VideoPlatform
+import com.centralia.app.domain.library.UndoMethod
 import java.time.Instant
 import java.util.UUID
 import kotlinx.serialization.Serializable
@@ -90,13 +92,14 @@ class MockLibraryRepository(
         }
     }
 
-    override suspend fun deleteVideo(id: UUID) {
+    override suspend fun deleteVideo(id: UUID): VideoDeletion {
         store.mutate(Snapshot.serializer(), filename, { seed() }) { current ->
             current.copy(videos = current.videos.filterNot { it.id == id })
         }
+        return VideoDeletion.local(id)
     }
 
-    override suspend fun restoreVideo(video: VideoItem) {
+    override suspend fun restoreVideo(video: VideoItem, method: UndoMethod) {
         store.mutate(Snapshot.serializer(), filename, { seed() }) { current ->
             current.copy(videos = current.videos.filterNot { it.id == video.id } + video)
         }
