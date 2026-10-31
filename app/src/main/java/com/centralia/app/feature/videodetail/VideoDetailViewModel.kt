@@ -2,9 +2,11 @@ package com.centralia.app.feature.videodetail
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.centralia.app.data.offline.OfflineException
 import com.centralia.app.domain.library.FolderRepository
 import com.centralia.app.domain.library.LibraryFolder
 import com.centralia.app.domain.library.PlayerSource
+import com.centralia.app.domain.library.VideoDeletion
 import com.centralia.app.domain.library.VideoItem
 import com.centralia.app.domain.library.VideoItemRepository
 import com.centralia.app.domain.library.VideoPlatform
@@ -45,7 +47,9 @@ class VideoDetailViewModel(
         val playerSource: PlayerSource? = null,
         val isPreparingPlayback: Boolean = false,
         /** The backend's web player for this short, from the last playback request. */
-        val webPlayerURL: String? = null
+        val webPlayerURL: String? = null,
+        /** Context-aware playback: why the short plays in data saver mode (mobile data). */
+        val dataSaverNotice: String? = null
     ) {
         /** Where to go if the native stream fails: the backend's embed, or one from the link. */
         val webFallbackURL: String?
@@ -109,7 +113,7 @@ class VideoDetailViewModel(
      * one, otherwise the platform's web player. Calls [onNothingToPlay] when
      * neither exists (e.g. offline with an unresolved share link).
      */
-    fun preparePlayback(onNothingToPlay: () -> Unit) {
+    fun preparePlayback(onNothingToPlay: () -> Unit, onOffline: () -> Unit = {}) {
         if (_uiState.value.isPreparingPlayback || _uiState.value.playerSource != null) return
         playbackJob = viewModelScope.launch {
             _uiState.update { it.copy(isPreparingPlayback = true) }
@@ -117,6 +121,12 @@ class VideoDetailViewModel(
                 videoRepository.playback(videoID)
             } catch (error: CancellationException) {
                 throw error // stopped while loading: do nothing
+            } catch (error: OfflineException) {
+                // Eventual connectivity: playing needs the network; say so instead of
+                // opening a web player that can't load either.
+                _uiState.update { it.copy(isPreparingPlayback = false, failureMessage = error.message) }
+                onOffline()
+                return@launch
             } catch (error: Exception) {
                 null // the web player still works without the backend's stream
             }
@@ -127,7 +137,12 @@ class VideoDetailViewModel(
                 else -> null
             }
             _uiState.update {
-                it.copy(playerSource = source, webPlayerURL = embed, isPreparingPlayback = false)
+                it.copy(
+                    playerSource = source,
+                    webPlayerURL = embed,
+                    isPreparingPlayback = false,
+                    dataSaverNotice = playback?.takeIf { it.dataSaver }?.notice
+                )
             }
             if (source == null) onNothingToPlay()
         }
@@ -143,7 +158,7 @@ class VideoDetailViewModel(
     fun stopPlayback() {
         playbackJob?.cancel()
         playbackJob = null
-        _uiState.update { it.copy(playerSource = null, isPreparingPlayback = false) }
+        _uiState.update { it.copy(playerSource = null, isPreparingPlayback = false, dataSaverNotice = null) }
     }
 
     fun updateTags(tags: List<String>, onSaved: () -> Unit) = mutate(onSaved) { video ->
@@ -168,15 +183,16 @@ class VideoDetailViewModel(
         _uiState.update { it.copy(video = it.video?.copy(note = trimmedNote)) }
     }
 
-    fun deleteVideo(onDeleted: (VideoItem) -> Unit) {
+    /** Soft delete; hands back the shake-to-undo pop-up the backend sent. */
+    fun deleteVideo(onDeleted: (VideoItem, VideoDeletion) -> Unit) {
         val video = _uiState.value.video ?: return
         if (_uiState.value.isMutating) return
 
         viewModelScope.launch {
             _uiState.update { it.copy(isMutating = true, failureMessage = null) }
             try {
-                videoRepository.deleteVideo(video.id)
-                onDeleted(video)
+                val deletion = videoRepository.deleteVideo(video.id)
+                onDeleted(video, deletion)
             } catch (error: Exception) {
                 _uiState.update { it.copy(failureMessage = error.localizedMessage) }
             } finally {
