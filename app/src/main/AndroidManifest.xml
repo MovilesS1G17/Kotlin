@@ -21,6 +21,10 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Centralia">
 
+        <!-- Sprint 4: lets the Android Studio Profiler attach to the release
+             build, which is the one to measure (a debug build is slower). -->
+        <profileable android:shell="true" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
