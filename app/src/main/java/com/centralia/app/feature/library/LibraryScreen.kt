@@ -24,6 +24,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.centralia.app.app.LibraryRevisions
 import com.centralia.app.domain.library.FolderRepository
 import com.centralia.app.domain.library.LibraryFolder
+import com.centralia.app.domain.library.RecentlyViewedEntry
+import com.centralia.app.domain.library.RecentlyViewedRepository
+import com.centralia.app.domain.library.recentlyViewedVideos
 import com.centralia.app.domain.library.VideoDeletion
 import com.centralia.app.domain.library.VideoItem
 import com.centralia.app.domain.library.VideoItemRepository
@@ -39,6 +42,7 @@ import com.centralia.app.ui.components.ProminentAction
 import com.centralia.app.ui.theme.CentraliaColors
 import com.centralia.app.ui.theme.CentraliaType
 import com.centralia.app.ui.theme.Spacing
+import kotlinx.coroutines.flow.flowOf
 
 /**
  * `struct LibraryView` — Screen 1. The SwiftUI body is a `ScrollView` of a
@@ -56,12 +60,17 @@ fun LibraryScreen(
     onPlayVideo: (VideoItem) -> Unit,
     userDisplayName: String? = null,
     onOpenFolder: (LibraryFolder) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    recentlyViewed: RecentlyViewedRepository? = null
 ) {
     val viewModel = centraliaViewModel(key = "library") {
         LibraryViewModel(videoRepository, folderRepository)
     }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    // Room emits again whenever the table changes, so the row updates by itself.
+    val recentEntries by remember(recentlyViewed) {
+        recentlyViewed?.observe() ?: flowOf(emptyList<RecentlyViewedEntry>())
+    }.collectAsStateWithLifecycle(initialValue = emptyList())
     val libraryRevision by revisions.library.collectAsStateWithLifecycle()
     val deletedElsewhere by revisions.deletedVideo.collectAsStateWithLifecycle()
 
@@ -169,6 +178,14 @@ fun LibraryScreen(
                             itemCount = viewModel::itemCount,
                             onOpenFolder = onOpenFolder
                         )
+                    }
+
+                    // Shorts still in the library only: a deleted one drops out.
+                    val recent = recentlyViewedVideos(recentEntries, state.videos)
+                    if (recent.isNotEmpty()) {
+                        item(key = "recentlyViewed") {
+                            RecentlyViewedSection(recent = recent, onOpenVideo = onOpenVideo)
+                        }
                     }
 
                     if (state.filteredVideos.isEmpty()) {
@@ -291,6 +308,38 @@ private fun FolderShortcutsSection(
                     folder = folder,
                     itemCount = itemCount(folder),
                     onClick = { onOpenFolder(folder) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentlyViewedSection(
+    recent: List<Pair<VideoItem, RecentlyViewedEntry>>,
+    onOpenVideo: (VideoItem) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.small)) {
+        CenteredContent {
+            Text(
+                text = "Recently viewed",
+                style = CentraliaType.sectionTitle,
+                color = CentraliaColors.Ink,
+                modifier = Modifier.padding(horizontal = Spacing.medium)
+            )
+        }
+
+        LazyRow(
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                horizontal = Spacing.medium
+            ),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.small)
+        ) {
+            items(items = recent, key = { "recent-" + it.first.id.toString() }) { (video, entry) ->
+                RecentlyViewedCard(
+                    video = video,
+                    viewCount = entry.viewCount,
+                    onClick = { onOpenVideo(video) }
                 )
             }
         }

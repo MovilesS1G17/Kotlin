@@ -124,7 +124,8 @@ fun AuthenticatedAppScreen(
                     onOpenVideo = { navController.navigate(Routes.videoDetail(it.id)) },
                     onPlayVideo = { navController.navigate(Routes.videoDetail(it.id, autoplay = true)) },
                     userDisplayName = user.displayName,
-                    onOpenFolder = { navController.navigate(Routes.folderDetail(it.id)) }
+                    onOpenFolder = { navController.navigate(Routes.folderDetail(it.id)) },
+                    recentlyViewed = container.recentlyViewed
                 )
             }
 
@@ -219,7 +220,8 @@ fun AuthenticatedAppScreen(
                         onBack = { navController.popBackStack() },
                         onVideoChanged = container.revisions::videoChanged,
                         onVideoDeleted = container.revisions::videoDeleted,
-                        autoplay = autoplay
+                        autoplay = autoplay,
+                        recentlyViewed = container.recentlyViewed
                     )
                 }
             }
