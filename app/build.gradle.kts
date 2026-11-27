@@ -29,7 +29,15 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Sprint 4 micro-optimization (Performance bugs, items 10-11): R8 removes
+            // unused code and shortens names, and resource shrinking removes unused
+            // resources, so the APK is smaller and less is loaded at launch.
+            // Compare the APK size before/after with Build > Analyze APK.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            // Signed with the debug key so the release APK can be installed for
+            // the course (and profiled). Use a real key for a store release.
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
