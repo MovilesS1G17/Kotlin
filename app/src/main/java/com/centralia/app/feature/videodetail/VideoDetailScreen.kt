@@ -1,5 +1,6 @@
 package com.centralia.app.feature.videodetail
 
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -36,6 +37,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.centralia.app.domain.library.FolderRepository
+import com.centralia.app.domain.library.RecentlyViewedRepository
 import com.centralia.app.domain.library.PlayerSource
 import com.centralia.app.domain.library.VideoDeletion
 import com.centralia.app.domain.library.VideoItem
@@ -82,7 +84,8 @@ fun VideoDetailScreen(
     onVideoChanged: () -> Unit,
     onVideoDeleted: (VideoItem, VideoDeletion) -> Unit,
     modifier: Modifier = Modifier,
-    autoplay: Boolean = false
+    autoplay: Boolean = false,
+    recentlyViewed: RecentlyViewedRepository? = null
 ) {
     val viewModel = centraliaViewModel(key = "videoDetail-$videoID") {
         VideoDetailViewModel(videoID, videoRepository, folderRepository)
@@ -102,6 +105,12 @@ fun VideoDetailScreen(
     val shareLink = rememberShareLink()
 
     LaunchedEffect(Unit) { viewModel.load() }
+
+    // "Recently viewed" (Room): one row per short, its count goes up on every
+    // visit. Room runs the write on its own thread, so this never blocks Main.
+    LaunchedEffect(state.video?.id) {
+        state.video?.let { recentlyViewed?.record(it) }
+    }
 
     // Opened from a card's play button: start the short as soon as it's loaded.
     var hasAutoplayed by rememberSaveable { mutableStateOf(false) }
@@ -684,7 +693,11 @@ private fun VideoTags(
                 Text(
                     text = tag,
                     style = CentraliaType.headline,
-                    color = if (isPrimary) Color.White else CentraliaColors.Ink
+                    color = if (isPrimary) Color.White else CentraliaColors.Ink,
+                    // One line per chip: a long tag ends in "…" instead of
+                    // pushing the layout past the screen edge.
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }

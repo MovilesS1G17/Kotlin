@@ -412,3 +412,58 @@ fun DurationBadge(
 /** `"\(count) \(count == 1 ? "short" : "shorts")"`. */
 fun shortsCountLabel(count: Int): String =
     if (count == 1) "1 short" else "$count shorts"
+
+/**
+ * "Recently viewed" (Sprint 3 · Room). One card per short the user opened
+ * lately, newest first, with how many times they opened it. Reads the Room
+ * table, so it works offline too.
+ */
+@Composable
+fun RecentlyViewedCard(
+    video: VideoItem,
+    viewCount: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = modifier
+            .size(width = 128.dp, height = 214.dp)
+            .centraliaPressable(onClickLabel = "Opens ${video.displayTitle}", onClick = onClick)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(160.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(CentraliaColors.SoftSurface)
+        ) {
+            VideoCoverImage(url = video.thumbnailURL)
+            VideoCoverGradient()
+            Text(
+                text = video.platform.displayName,
+                style = CentraliaType.caption.semibold(),
+                color = Color.White,
+                maxLines = 1,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(8.dp)
+            )
+        }
+
+        Text(
+            text = video.displayTitle,
+            style = CentraliaType.caption.semibold(),
+            color = CentraliaColors.Ink,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Text(
+            text = if (viewCount == 1) "Viewed once" else "Viewed $viewCount times",
+            style = CentraliaType.caption,
+            color = CentraliaColors.SecondaryText,
+            maxLines = 1
+        )
+    }
+}
