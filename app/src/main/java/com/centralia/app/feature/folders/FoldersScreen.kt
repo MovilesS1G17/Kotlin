@@ -184,7 +184,7 @@ fun FoldersScreen(
                 } else {
                     folderGrid(
                         folders = state.filteredFolders,
-                        itemCount = state::itemCount,
+                        itemCount = viewModel::itemCount,
                         onOpenFolder = onOpenFolder
                     )
                 }

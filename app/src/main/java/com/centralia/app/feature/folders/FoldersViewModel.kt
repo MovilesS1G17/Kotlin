@@ -1,5 +1,6 @@
 package com.centralia.app.feature.folders
 
+import com.centralia.app.data.cache.FolderCountCache
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.centralia.app.domain.library.FolderRepository
@@ -46,6 +47,11 @@ class FoldersViewModel(
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+
+    /** Caching (Alex): folder counts from an ArrayMap, rebuilt only when the list changes. */
+    private val folderCounts = FolderCountCache()
+
+    fun itemCount(folder: LibraryFolder): Int = folderCounts.count(_uiState.value.videos, folder.id)
 
     fun load() {
         val current = _uiState.value.state
