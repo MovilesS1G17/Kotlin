@@ -1,5 +1,6 @@
 package com.centralia.app.feature.library
 
+import com.centralia.app.data.cache.FolderCountCache
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.centralia.app.domain.library.FolderRepository
@@ -222,7 +223,10 @@ class LibraryViewModel(
         }
     }
 
-    /** `viewModel.videos.count { $0.folderID == folder.id }`. */
+    /** Caching (Alex): folder counts from an ArrayMap, rebuilt only when the list changes. */
+    private val folderCounts = FolderCountCache()
+
+    /** `viewModel.videos.count { $0.folderID == folder.id }`, served from [folderCounts]. */
     fun itemCount(folder: LibraryFolder): Int =
-        _uiState.value.videos.count { it.folderID == folder.id }
+        folderCounts.count(_uiState.value.videos, folder.id)
 }
