@@ -9,8 +9,23 @@ object TextMatch {
     private val combiningMarks = Regex("\\p{Mn}+")
 
 
-    fun fold(value: String): String =
-        combiningMarks.replace(Normalizer.normalize(value, Normalizer.Form.NFD), "").lowercase(Locale.ROOT)
+    /**
+     * Case- and accent-insensitive form of [value].
+     *
+     * Micro-optimization (Sprint 4): almost every title, creator and tag is
+     * plain ASCII, which has no accents to remove, so it skips the Unicode
+     * decomposition (NFD) and the regex and only lowercases. Accented text
+     * still goes the full way, so the result is identical.
+     */
+    fun fold(value: String): String {
+        if (isAscii(value)) return value.lowercase(Locale.ROOT)
+        return combiningMarks.replace(Normalizer.normalize(value, Normalizer.Form.NFD), "").lowercase(Locale.ROOT)
+    }
+
+    private fun isAscii(value: String): Boolean {
+        for (i in value.indices) if (value[i].code >= 0x80) return false
+        return true
+    }
 
 
     fun contains(value: String, term: String): Boolean = fold(value).contains(fold(term))

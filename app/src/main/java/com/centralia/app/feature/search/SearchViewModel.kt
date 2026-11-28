@@ -10,25 +10,31 @@ import com.centralia.app.domain.library.VideoDeletion
 import com.centralia.app.domain.library.VideoItem
 import com.centralia.app.domain.library.VideoItemRepository
 import com.centralia.app.domain.library.VideoPlatform
+import com.centralia.app.domain.search.SearchFilter
+import com.centralia.app.domain.search.SearchFolderFilter
 import com.centralia.app.domain.search.SearchHistoryRepository
+import com.centralia.app.domain.search.SearchInput
 import com.centralia.app.feature.library.LoadState
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
+import android.os.Trace
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** `enum SearchFolderFilter`. */
-sealed interface SearchFolderFilter {
-    data object All : SearchFolderFilter
-    data object Unorganized : SearchFolderFilter
-    data class InFolder(val folderID: UUID) : SearchFolderFilter
-}
-
 /** `@Observable final class SearchViewModel` — Screen 2, Global Search. */
+@OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 class SearchViewModel(
     private val videoRepository: VideoItemRepository,
     private val folderRepository: FolderRepository,
@@ -47,48 +53,27 @@ class SearchViewModel(
         val selectedPlatform: VideoPlatform? = null,
         val selectedCreator: String? = null,
         val selectedFolder: SearchFolderFilter = SearchFolderFilter.All,
-        val selectedTags: Set<String> = emptySet()
-    ) {
+        val selectedTags: Set<String> = emptySet(),
         /**
-         * `filteredVideos` — every active facet must pass, then each whitespace
-         * separated term must appear in the title, creator, folder name or a tag.
+         * The search results. Computed by `SearchFilter` on a background thread
+         * (see the pipeline in `init`), never in this getter on the main thread.
          */
+        val results: List<VideoItem> = emptyList()
+    ) {
         val filteredVideos: List<VideoItem>
-            get() {
-                val terms = query.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+            get() = results
 
-                return videos.filter { video ->
-                    if (selectedPlatform != null && video.platform != selectedPlatform) {
-                        return@filter false
-                    }
-                    if (selectedCreator != null && video.creator != selectedCreator) {
-                        return@filter false
-                    }
-
-                    when (val folderFilter = selectedFolder) {
-                        SearchFolderFilter.All -> Unit
-                        SearchFolderFilter.Unorganized ->
-                            if (video.folderID != null) return@filter false
-                        is SearchFolderFilter.InFolder ->
-                            if (video.folderID != folderFilter.folderID) return@filter false
-                    }
-
-                    if (!TextMatch.hasAllTags(video.tags, selectedTags)) return@filter false
-
-                    if (terms.isEmpty()) return@filter true
-
-                    val searchableValues = listOf(
-                        video.displayTitle,
-                        video.creator,
-                        folderName(video.folderID) ?: ""
-                    ) + video.tags
-
-                    // Case- and accent-insensitive, like iOS (`TextMatch`).
-                    terms.all { term ->
-                        searchableValues.any { TextMatch.contains(it, term) }
-                    }
-                }
-            }
+        /** What the results depend on; the pipeline recomputes when it changes. */
+        val searchInput: SearchInput
+            get() = SearchInput(
+                videos = videos,
+                folders = folders,
+                query = query,
+                platform = selectedPlatform,
+                creator = selectedCreator,
+                folder = selectedFolder,
+                tags = selectedTags
+            )
 
         val availableCreators: List<String>
             get() = videos.map { it.creator }
@@ -112,6 +97,36 @@ class SearchViewModel(
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+
+    init {
+        // Multithreading (Sprint 3, Alex): a Flow pipeline for search.
+        //  - map + distinctUntilChanged: only a change to the query, a filter
+        //    or the library starts a new search (not unrelated state changes);
+        //  - debounce: while typing, wait 200 ms for the user to pause;
+        //  - mapLatest: a new keystroke cancels the search still running;
+        //  - flowOn(Dispatchers.Default): the filtering runs on the CPU pool,
+        //    off the main thread;
+        //  - collect runs in viewModelScope, on Main, where the UI state is set.
+        viewModelScope.launch {
+            _uiState
+                .map { it.searchInput }
+                .distinctUntilChanged()
+                .debounce { input -> if (input.query.isBlank()) 0L else SEARCH_DEBOUNCE_MS }
+                .mapLatest { input ->
+                    // Sprint 4: a named section, so the Android Studio Profiler
+                    // (System Trace) shows how long each search takes, before
+                    // and after the SearchIndex micro-optimization.
+                    Trace.beginSection("search_filter")
+                    try {
+                        SearchFilter.apply(input)
+                    } finally {
+                        Trace.endSection()
+                    }
+                }
+                .flowOn(Dispatchers.Default)
+                .collect { results -> _uiState.update { it.copy(results = results) } }
+        }
+    }
 
     fun load() {
         val current = _uiState.value.state
@@ -312,5 +327,9 @@ class SearchViewModel(
                 _uiState.update { it.copy(state = LoadState.Failed(error.localizedMessage ?: "")) }
             }
         }
+    }
+
+    private companion object {
+        const val SEARCH_DEBOUNCE_MS = 200L
     }
 }
