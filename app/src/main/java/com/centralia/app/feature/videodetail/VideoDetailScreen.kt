@@ -70,9 +70,67 @@ import com.centralia.app.ui.theme.Spacing
 import com.centralia.app.ui.theme.bold
 import com.centralia.app.ui.theme.semibold
 import java.time.ZoneId
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.runtime.rememberCoroutineScope
+import com.centralia.app.domain.analytics.AnalyticsTracker
+import com.centralia.app.domain.analytics.NoOpAnalyticsTracker
+import com.centralia.app.domain.analytics.Sprint4Events
+import com.centralia.app.domain.watchlater.WatchLaterRepository
+import kotlinx.coroutines.launch
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.UUID
+
+/** The "Watch later" button on the detail screen: reads and writes the Room queue. */
+@Composable
+private fun WatchLaterToggle(
+    video: VideoItem,
+    watchLater: WatchLaterRepository,
+    analytics: AnalyticsTracker
+) {
+    val scope = rememberCoroutineScope()
+    var isQueued by remember(video.id) { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(video.id) { isQueued = watchLater.contains(video.id) }
+    val queued = isQueued ?: return
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.small),
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 48.dp)
+            .centraliaPressable(onClickLabel = if (queued) "Removes from Watch later" else "Adds to Watch later") {
+                scope.launch {
+                    if (queued) {
+                        watchLater.remove(video.id)
+                        isQueued = false
+                    } else if (watchLater.add(video)) {
+                        isQueued = true
+                        analytics.track(Sprint4Events.WATCH_LATER_ADDED, mapOf("video_id" to video.id.toString()))
+                    }
+                }
+            }
+            .background(
+                if (queued) CentraliaColors.Ink else CentraliaColors.Surface,
+                androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+            )
+            .border(1.dp, CentraliaColors.Divider, androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+            .padding(horizontal = Spacing.medium, vertical = 12.dp)
+    ) {
+        Icon(
+            imageVector = if (queued) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+            contentDescription = null,
+            tint = if (queued) CentraliaColors.Surface else CentraliaColors.Ink
+        )
+        Text(
+            text = if (queued) "In Watch later" else "Watch later",
+            style = CentraliaType.headline,
+            color = if (queued) CentraliaColors.Surface else CentraliaColors.Ink
+        )
+    }
+}
 
 /** `struct VideoDetailView` — Screen 6. */
 @Composable
@@ -85,7 +143,9 @@ fun VideoDetailScreen(
     onVideoDeleted: (VideoItem, VideoDeletion) -> Unit,
     modifier: Modifier = Modifier,
     autoplay: Boolean = false,
-    recentlyViewed: RecentlyViewedRepository? = null
+    recentlyViewed: RecentlyViewedRepository? = null,
+    watchLater: WatchLaterRepository? = null,
+    analytics: AnalyticsTracker = NoOpAnalyticsTracker
 ) {
     val viewModel = centraliaViewModel(key = "videoDetail-$videoID") {
         VideoDetailViewModel(videoID, videoRepository, folderRepository)
@@ -211,6 +271,11 @@ fun VideoDetailScreen(
                             state.dataSaverNotice?.let { notice -> DataSaverNotice(notice) }
 
                             VideoMetadata(video = video, folderName = state.folderName)
+
+                            // Sprint 4 (Alex): add to / remove from the Watch later queue (Room, works offline).
+                            if (watchLater != null) {
+                                WatchLaterToggle(video = video, watchLater = watchLater, analytics = analytics)
+                            }
 
                             VideoTags(
                                 tags = video.tags,
