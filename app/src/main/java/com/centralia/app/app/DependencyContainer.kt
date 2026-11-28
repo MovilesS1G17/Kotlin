@@ -1,11 +1,16 @@
 package com.centralia.app.app
 
+import com.centralia.app.domain.auth.InMemoryRememberedEmailStore
+import com.centralia.app.domain.auth.RememberedEmailStore
+import com.centralia.app.data.local.DataStoreRememberedEmailStore
 import android.content.Context
 import com.centralia.app.BuildConfig
 import com.centralia.app.data.export.JsonLibraryExportService
 import com.centralia.app.data.local.LibraryMemoryCache
 import com.centralia.app.data.local.LocalLibraryStore
 import com.centralia.app.data.local.PendingActionQueue
+import com.centralia.app.data.local.room.CentraliaDatabase
+import com.centralia.app.data.local.room.RoomRecentlyViewedRepository
 import com.centralia.app.data.mock.MockAuthenticationRepository
 import com.centralia.app.data.mock.MockDataStore
 import com.centralia.app.data.mock.MockLibraryRepository
@@ -26,6 +31,8 @@ import com.centralia.app.data.remote.TokenStore
 import com.centralia.app.domain.auth.AuthenticationRepository
 import com.centralia.app.domain.imports.VideoImportPipeline
 import com.centralia.app.domain.library.FolderRepository
+import com.centralia.app.domain.library.InMemoryRecentlyViewedRepository
+import com.centralia.app.domain.library.RecentlyViewedRepository
 import com.centralia.app.domain.library.VideoItemRepository
 import com.centralia.app.domain.profile.LibraryExportService
 import com.centralia.app.domain.profile.UserRepository
@@ -53,7 +60,11 @@ class DependencyContainer(
     /** Eventual connectivity: live online/offline state for the banner. */
     val isOnline: StateFlow<Boolean> = MutableStateFlow(true),
     /** Changes made offline that are waiting in the outbox. */
-    val pendingChanges: StateFlow<Int> = MutableStateFlow(0)
+    val pendingChanges: StateFlow<Int> = MutableStateFlow(0),
+    /** "Recently viewed" history (Room database on the phone). */
+    val recentlyViewed: RecentlyViewedRepository = InMemoryRecentlyViewedRepository(),
+    /** "Remember my email" on the sign-in screen (DataStore). */
+    val rememberedEmail: RememberedEmailStore = InMemoryRememberedEmailStore()
 ) {
     companion object {
 
@@ -80,6 +91,10 @@ class DependencyContainer(
             val store = LocalLibraryStore(context.filesDir)
             val outbox = PendingActionQueue(context.filesDir)
             val memoryCache = LibraryMemoryCache()
+            // Local storage, relational (Enrique): Room/SQLite for the
+            // "Recently viewed" history.
+            val database = CentraliaDatabase.build(context)
+            val recentlyViewed = RoomRecentlyViewedRepository(database.recentlyViewedDao())
             val libraryRepository = OfflineFirstLibraryRepository(
                 remote = remoteLibrary,
                 store = store,
@@ -114,6 +129,7 @@ class DependencyContainer(
                 backgroundScope.launch {
                     store.clear()
                     outbox.clear()
+                    recentlyViewed.clear()
                 }
             }
 
@@ -136,7 +152,9 @@ class DependencyContainer(
                 session = session,
                 revisions = revisions,
                 isOnline = connectivity.isOnline,
-                pendingChanges = outbox.count
+                pendingChanges = outbox.count,
+                recentlyViewed = recentlyViewed,
+                rememberedEmail = DataStoreRememberedEmailStore(context.applicationContext)
             )
         }
 

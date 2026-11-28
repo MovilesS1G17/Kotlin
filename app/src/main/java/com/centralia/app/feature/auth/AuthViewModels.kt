@@ -1,5 +1,7 @@
 package com.centralia.app.feature.auth
 
+import com.centralia.app.domain.auth.InMemoryRememberedEmailStore
+import com.centralia.app.domain.auth.RememberedEmailStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.centralia.app.data.remote.ApiException
@@ -18,7 +20,8 @@ import kotlinx.coroutines.launch
 
 
 class LogInViewModel(
-    private val repository: AuthenticationRepository
+    private val repository: AuthenticationRepository,
+    private val rememberedEmail: RememberedEmailStore = InMemoryRememberedEmailStore()
 ) : ViewModel() {
 
     data class UiState(
@@ -27,13 +30,27 @@ class LogInViewModel(
         val emailError: String? = null,
         val passwordError: String? = null,
         val failureMessage: String? = null,
-        val isSubmitting: Boolean = false
+        val isSubmitting: Boolean = false,
+        /** "Remember my email": the email is kept on the phone (DataStore). */
+        val rememberEmail: Boolean = true
     ) {
         val isBusy: Boolean get() = isSubmitting
     }
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+
+    init {
+        // Prefill the email the user asked us to remember (read off the main thread by DataStore).
+        viewModelScope.launch {
+            val saved = runCatching { rememberedEmail.email() }.getOrNull()
+            if (!saved.isNullOrBlank()) {
+                _uiState.update { if (it.email.isEmpty()) it.copy(email = saved) else it }
+            }
+        }
+    }
+
+    fun onRememberEmailChange(value: Boolean) = _uiState.update { it.copy(rememberEmail = value) }
 
     fun onEmailChange(value: String) = _uiState.update { it.copy(email = value) }
 
@@ -49,10 +66,11 @@ class LogInViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isSubmitting = true, failureMessage = null) }
             try {
-                val user = repository.logIn(
-                    email = AuthenticationValidation.normalizedEmail(_uiState.value.email),
-                    password = _uiState.value.password
-                )
+                val email = AuthenticationValidation.normalizedEmail(_uiState.value.email)
+                val user = repository.logIn(email = email, password = _uiState.value.password)
+                runCatching {
+                    if (_uiState.value.rememberEmail) rememberedEmail.remember(email) else rememberedEmail.forget()
+                }
                 onAuthenticated(user)
             } catch (cancellation: CancellationException) {
                 throw cancellation

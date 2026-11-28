@@ -1,7 +1,11 @@
 package com.centralia.app.feature.auth
 
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.Checkbox
+import com.centralia.app.domain.auth.InMemoryRememberedEmailStore
+import com.centralia.app.domain.auth.RememberedEmailStore
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -39,9 +43,12 @@ fun LogInScreen(
     completeAuthentication: (AuthenticatedUser) -> Unit,
     requireVerification: (VerificationChallenge) -> Unit,
     modifier: Modifier = Modifier,
-    visit: Int = 0
+    visit: Int = 0,
+    rememberedEmail: RememberedEmailStore = InMemoryRememberedEmailStore()
 ) {
-    val viewModel = centraliaViewModel(key = "logIn-$visit") { LogInViewModel(repository) }
+    val viewModel = centraliaViewModel(key = "logIn-$visit") {
+        LogInViewModel(repository, rememberedEmail)
+    }
     val logIn = { viewModel.logIn(completeAuthentication, requireVerification) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showsPasswordReset by remember { mutableStateOf(false) }
@@ -122,10 +129,32 @@ fun LogInScreen(
                 onSubmit = logIn
             )
 
-            Box(
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.CenterEnd
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.toggleable(
+                        value = state.rememberEmail,
+                        enabled = !state.isBusy,
+                        role = Role.Checkbox,
+                        onValueChange = viewModel::onRememberEmailChange
+                    )
+                ) {
+                    Checkbox(
+                        checked = state.rememberEmail,
+                        onCheckedChange = null,
+                        enabled = !state.isBusy
+                    )
+                    Text(
+                        text = "Remember my email",
+                        style = CentraliaType.subheadline,
+                        color = CentraliaColors.Ink
+                    )
+                }
+
                 CentraliaTextButton(
                     title = "Forgot password?",
                     style = CentraliaType.subheadline.semibold(),
