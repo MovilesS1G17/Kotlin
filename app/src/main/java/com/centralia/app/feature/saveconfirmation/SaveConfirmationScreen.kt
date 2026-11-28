@@ -294,7 +294,9 @@ private fun VideoSummaryCard(
                             Text(
                                 text = tag,
                                 style = CentraliaType.caption.semibold(),
-                                color = CentraliaColors.Ink
+                                color = CentraliaColors.Ink,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
