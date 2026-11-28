@@ -37,6 +37,11 @@ import com.centralia.app.feature.save.SaveVideoScreen
 import com.centralia.app.feature.search.SearchScreen
 import com.centralia.app.feature.smartorg.SmartOrganizationScreen
 import com.centralia.app.feature.videodetail.VideoDetailScreen
+import com.centralia.app.feature.creators.CreatorsScreen
+import com.centralia.app.feature.insights.InsightsScreen
+import com.centralia.app.feature.rediscover.RediscoverScreen
+import com.centralia.app.feature.trends.TrendsScreen
+import com.centralia.app.feature.watchlater.WatchLaterScreen
 import com.centralia.app.ui.components.CentraliaIcons
 import com.centralia.app.ui.components.OfflineBanner
 import com.centralia.app.ui.theme.CentraliaColors
@@ -53,6 +58,12 @@ private object Routes {
     const val SMART_ORGANIZATION = "smartOrganization"
     const val VIDEO_DETAIL = "videoDetail/{videoId}?autoplay={autoplay}"
     const val FOLDER_DETAIL = "folderDetail/{folderId}"
+    // Sprint 4 views
+    const val WATCH_LATER = "watchLater"
+    const val REDISCOVER = "rediscover"
+    const val CREATORS = "creators"
+    const val TRENDS = "trends"
+    const val INSIGHTS = "insights"
 
     fun videoDetail(videoID: UUID, autoplay: Boolean = false) = "videoDetail/$videoID?autoplay=$autoplay"
     fun folderDetail(folderID: UUID) = "folderDetail/$folderID"
@@ -125,7 +136,59 @@ fun AuthenticatedAppScreen(
                     onPlayVideo = { navController.navigate(Routes.videoDetail(it.id, autoplay = true)) },
                     userDisplayName = user.displayName,
                     onOpenFolder = { navController.navigate(Routes.folderDetail(it.id)) },
-                    recentlyViewed = container.recentlyViewed
+                    recentlyViewed = container.recentlyViewed,
+                    onOpenDiscover = { destination -> navController.navigate(destination.route) }
+                )
+            }
+
+            // ---- Sprint 4: one new view per teammate
+            composable(Routes.WATCH_LATER) {
+                WatchLaterScreen(
+                    watchLater = container.watchLater,
+                    videoRepository = container.videoItemRepository,
+                    analytics = container.analytics,
+                    onBack = { navController.popBackStack() },
+                    onOpenVideo = { navController.navigate(Routes.videoDetail(it.id, autoplay = true)) }
+                )
+            }
+
+            composable(Routes.REDISCOVER) {
+                RediscoverScreen(
+                    videoRepository = container.videoItemRepository,
+                    recentlyViewed = container.recentlyViewed,
+                    dismissals = container.rediscoverDismissals,
+                    analytics = container.analytics,
+                    isOnline = isOnline,
+                    onBack = { navController.popBackStack() },
+                    onOpenVideo = { navController.navigate(Routes.videoDetail(it.id)) }
+                )
+            }
+
+            composable(Routes.CREATORS) {
+                CreatorsScreen(
+                    videoRepository = container.videoItemRepository,
+                    cache = container.creatorsCache,
+                    analytics = container.analytics,
+                    onBack = { navController.popBackStack() },
+                    onOpenVideo = { navController.navigate(Routes.videoDetail(it.id)) }
+                )
+            }
+
+            composable(Routes.TRENDS) {
+                TrendsScreen(
+                    repository = container.trends,
+                    analytics = container.analytics,
+                    isOnline = isOnline,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(Routes.INSIGHTS) {
+                InsightsScreen(
+                    videoRepository = container.videoItemRepository,
+                    store = container.insightsStore,
+                    analytics = container.analytics,
+                    onBack = { navController.popBackStack() }
                 )
             }
 
@@ -221,7 +284,9 @@ fun AuthenticatedAppScreen(
                         onVideoChanged = container.revisions::videoChanged,
                         onVideoDeleted = container.revisions::videoDeleted,
                         autoplay = autoplay,
-                        recentlyViewed = container.recentlyViewed
+                        recentlyViewed = container.recentlyViewed,
+                        watchLater = container.watchLater,
+                        analytics = container.analytics
                     )
                 }
             }

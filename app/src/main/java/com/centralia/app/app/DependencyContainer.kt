@@ -45,6 +45,29 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import com.centralia.app.data.analytics.BatchingAnalyticsTracker
+import com.centralia.app.data.insights.FileInsightsSnapshotStore
+import com.centralia.app.data.local.SharedPreferencesRediscoverDismissals
+import com.centralia.app.data.local.room.RoomWatchLaterRepository
+import com.centralia.app.data.trends.FileTrendsDiskStore
+import com.centralia.app.data.trends.LruTrendsMemoryCache
+import com.centralia.app.data.trends.fetchTrends
+import com.centralia.app.domain.analytics.AnalyticsTracker
+import com.centralia.app.domain.analytics.NoOpAnalyticsTracker
+import com.centralia.app.domain.creators.CreatorsCache
+import com.centralia.app.domain.insights.InMemoryInsightsSnapshotStore
+import com.centralia.app.domain.insights.InsightsSnapshotStore
+import com.centralia.app.domain.rediscover.InMemoryRediscoverDismissals
+import com.centralia.app.domain.rediscover.RediscoverDismissals
+import com.centralia.app.domain.trends.CachedTrendsRepository
+import com.centralia.app.domain.trends.InMemoryTrendsDiskStore
+import com.centralia.app.domain.trends.MapTrendsMemoryCache
+import com.centralia.app.domain.trends.TrendItem
+import com.centralia.app.domain.trends.Trends
+import com.centralia.app.domain.trends.TrendsRepository
+import com.centralia.app.domain.watchlater.InMemoryWatchLaterRepository
+import com.centralia.app.domain.watchlater.WatchLaterRepository
+import java.time.Instant
 
 
 class DependencyContainer(
@@ -64,9 +87,37 @@ class DependencyContainer(
     /** "Recently viewed" history (Room database on the phone). */
     val recentlyViewed: RecentlyViewedRepository = InMemoryRecentlyViewedRepository(),
     /** "Remember my email" on the sign-in screen (DataStore). */
-    val rememberedEmail: RememberedEmailStore = InMemoryRememberedEmailStore()
+    val rememberedEmail: RememberedEmailStore = InMemoryRememberedEmailStore(),
+    // ---- Sprint 4
+    /** Feature events for BQ11-15, batched and sent when online. */
+    val analytics: AnalyticsTracker = NoOpAnalyticsTracker,
+    /** Rediscover's "Not now" (SharedPreferences). */
+    val rediscoverDismissals: RediscoverDismissals = InMemoryRediscoverDismissals(),
+    /** Watch later queue (Room table `watch_later`). */
+    val watchLater: WatchLaterRepository = InMemoryWatchLaterRepository(),
+    /** Trends with a memory LRU + disk cache in front of the API. */
+    val trends: TrendsRepository = CachedTrendsRepository(
+        fetch = { days -> sampleTrends(days) },
+        memory = MapTrendsMemoryCache(),
+        disk = InMemoryTrendsDiskStore()
+    ),
+    /** Grouped creators by library fingerprint (LRU). */
+    val creatorsCache: CreatorsCache = CreatorsCache(),
+    /** Last Insights snapshot (JSON file). */
+    val insightsStore: InsightsSnapshotStore = InMemoryInsightsSnapshotStore()
 ) {
     companion object {
+
+        /** Trends for the mock build (no server). */
+        fun sampleTrends(days: Int) = Trends(
+            generatedAt = Instant.now(),
+            windowDays = days,
+            minUsers = 3,
+            totalSaves = 128,
+            categories = listOf(TrendItem("Recipes", 34, 12), TrendItem("Fitness", 21, 9), TrendItem("Travel", 17, 8)),
+            tags = listOf(TrendItem("Pasta", 15, 7), TrendItem("Workout", 11, 6), TrendItem("Beach", 8, 4)),
+            platformCounts = mapOf("tiktok" to 61, "instagramReel" to 33, "youtubeShort" to 34)
+        )
 
         fun make(context: Context): DependencyContainer {
             check(BuildConfig.API_BASE_URL.isNotBlank()) {
@@ -95,6 +146,22 @@ class DependencyContainer(
             // "Recently viewed" history.
             val database = CentraliaDatabase.build(context)
             val recentlyViewed = RoomRecentlyViewedRepository(database.recentlyViewedDao())
+            // ---- Sprint 4
+            // Local storage (Alex): the Watch later queue, second table of the same database.
+            val watchLater = RoomWatchLaterRepository(database.watchLaterDao())
+            // Key/value (Enrique): Rediscover's "Not now".
+            val rediscoverDismissals = SharedPreferencesRediscoverDismissals(
+                context.getSharedPreferences("centralia_rediscover", Context.MODE_PRIVATE)
+            )
+            // Caching (David's feature): LruCache in memory + JSON file on disk in front of GET /v1/trends.
+            val trends = CachedTrendsRepository(
+                fetch = { days -> fetchTrends(client, days) },
+                memory = LruTrendsMemoryCache(),
+                disk = FileTrendsDiskStore(java.io.File(context.cacheDir, "trends"))
+            )
+            val creatorsCache = CreatorsCache()
+            // Files (Gustavo's feature): the last Insights snapshot.
+            val insightsStore = FileInsightsSnapshotStore(java.io.File(context.filesDir, "insights"))
             val libraryRepository = OfflineFirstLibraryRepository(
                 remote = remoteLibrary,
                 store = store,
@@ -116,6 +183,8 @@ class DependencyContainer(
                 context.getSharedPreferences("centralia_offline_search", Context.MODE_PRIVATE)
             )
 
+            val analytics = BatchingAnalyticsTracker(client, backgroundScope, connectivity.isOnline)
+
             backgroundScope.launch {
                 outbox.refreshCount()
                 // Every time the phone comes back online, send what was queued.
@@ -126,10 +195,17 @@ class DependencyContainer(
             session.onSignOut = {
                 memoryCache.clear()
                 userRepository.clear()
+                creatorsCache.clear()
                 backgroundScope.launch {
                     store.clear()
                     outbox.clear()
                     recentlyViewed.clear()
+                    // Sprint 4: everything the new features keep on the phone.
+                    watchLater.clear()
+                    rediscoverDismissals.clear()
+                    trends.clear()
+                    insightsStore.clear()
+                    analytics.clear()
                 }
             }
 
@@ -154,7 +230,13 @@ class DependencyContainer(
                 isOnline = connectivity.isOnline,
                 pendingChanges = outbox.count,
                 recentlyViewed = recentlyViewed,
-                rememberedEmail = DataStoreRememberedEmailStore(context.applicationContext)
+                rememberedEmail = DataStoreRememberedEmailStore(context.applicationContext),
+                analytics = analytics,
+                rediscoverDismissals = rediscoverDismissals,
+                watchLater = watchLater,
+                trends = trends,
+                creatorsCache = creatorsCache,
+                insightsStore = insightsStore
             )
         }
 

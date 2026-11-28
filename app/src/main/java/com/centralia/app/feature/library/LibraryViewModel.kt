@@ -80,8 +80,14 @@ class LibraryViewModel(
         val undoDeletion: VideoDeletion? = null,
         val selectedFilter: LibrarySourceFilter = LibrarySourceFilter.All
     ) {
-        val filteredVideos: List<VideoItem>
-            get() = videos.filter { selectedFilter.includes(it) }
+        /**
+         * Micro-optimization (Sprint 4): computed once per state, not on every
+         * read. The screen reads it twice per recomposition (empty check and
+         * the feed), and a getter re-filtered the whole library each time.
+         */
+        val filteredVideos: List<VideoItem> by lazy(LazyThreadSafetyMode.NONE) {
+            if (selectedFilter == LibrarySourceFilter.All) videos else videos.filter { selectedFilter.includes(it) }
+        }
     }
 
     private val _uiState = MutableStateFlow(UiState())
