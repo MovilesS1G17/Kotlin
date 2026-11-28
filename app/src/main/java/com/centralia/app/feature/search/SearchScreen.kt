@@ -1,5 +1,6 @@
 package com.centralia.app.feature.search
 
+import com.centralia.app.domain.search.SearchFolderFilter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
