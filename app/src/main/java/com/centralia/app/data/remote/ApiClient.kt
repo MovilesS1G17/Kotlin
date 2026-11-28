@@ -31,7 +31,10 @@ class ApiException(
 
     val retryAfter: Int? = null,
 
-    val email: String? = null
+    val email: String? = null,
+
+    /** A short headline for the error, when the API sends one (e.g. rejected links). */
+    val title: String? = null
 ) : Exception(detail) {
     companion object {
         fun unreachable() = ApiException(
@@ -182,7 +185,8 @@ class ApiClient(
                 code = payload?.code ?: "http_$statusCode",
                 detail = payload?.detail ?: "Something went wrong. Please try again.",
                 retryAfter = payload?.retryAfter,
-                email = payload?.email
+                email = payload?.email,
+                title = payload?.title
             )
         }
 
@@ -194,7 +198,8 @@ class ApiClient(
         val code: String? = null,
         val detail: String? = null,
         val retryAfter: Int? = null,
-        val email: String? = null
+        val email: String? = null,
+        val title: String? = null
     )
 
     companion object {
