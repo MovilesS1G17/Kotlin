@@ -1,5 +1,6 @@
 package com.centralia.app.feature.videodetail
 
+import com.centralia.app.domain.library.TagRules
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -53,13 +54,9 @@ fun VideoTagEditorSheet(
     val newTagFocusRequester = remember { FocusRequester() }
 
     val addNewTag = {
-        val tag = newTag.trim()
-        if (tag.isNotEmpty()) {
-            if (workingTags.none { it.equals(tag, ignoreCase = true) }) {
-                workingTags.add(tag)
-            }
-            newTag = ""
-        }
+        val updated = TagRules.addPending(workingTags.toList(), newTag)
+        if (updated.size > workingTags.size) workingTags.add(updated.last())
+        if (TagRules.isValid(newTag)) newTag = ""
     }
 
     val unselectedAvailableTags = availableTags.filter { availableTag ->
@@ -77,7 +74,8 @@ fun VideoTagEditorSheet(
         trailingAction = SheetAction(
             title = if (isMutating) "Saving…" else "Save",
             isEnabled = !isMutating,
-            onClick = { onSave(workingTags.toList()) }
+            // TA feedback: a tag typed but not added yet is saved too.
+            onClick = { onSave(TagRules.addPending(workingTags.toList(), newTag)) }
         )
     ) {
         Column(
@@ -126,7 +124,7 @@ fun VideoTagEditorSheet(
                 CentraliaBorderedTextField(
                     placeholder = "New tag",
                     value = newTag,
-                    onValueChange = { newTag = it },
+                    onValueChange = { newTag = TagRules.limitInput(it) },
                     minHeight = 52.dp,
                     focusRequester = newTagFocusRequester,
                     onSubmit = addNewTag,
@@ -135,10 +133,14 @@ fun VideoTagEditorSheet(
 
                 CentraliaTextButton(
                     title = "Add",
-                    isDisabled = newTag.trim().isEmpty(),
+                    isDisabled = !TagRules.isValid(newTag),
                     onClick = addNewTag
                 )
             }
+
+            SheetSectionFooter(
+                text = "Up to ${TagRules.MAX_LENGTH} characters · ${TagRules.counter(newTag)}"
+            )
 
             if (unselectedAvailableTags.isNotEmpty()) {
                 SheetSectionHeader(title = "Available tags")
