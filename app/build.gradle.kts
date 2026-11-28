@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -74,6 +75,14 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
+
+    // Sprint 3 local storage: Room (relational, Enrique) and DataStore (Alex).
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+    implementation(libs.androidx.datastore.preferences)
+    // Sprint 3 caching (Alex): ArrayMap for the folder counts.
+    implementation(libs.androidx.collection)
     // Cover images of saved shorts.
     implementation(libs.coil.compose)
     // Native playback of the MP4 the backend prepares for each short.
