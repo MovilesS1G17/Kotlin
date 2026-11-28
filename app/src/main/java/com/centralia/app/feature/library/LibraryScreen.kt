@@ -21,6 +21,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.centralia.app.feature.discover.DiscoverDestination
+import com.centralia.app.feature.discover.DiscoverShortcutsRow
 import com.centralia.app.app.LibraryRevisions
 import com.centralia.app.domain.library.FolderRepository
 import com.centralia.app.domain.library.LibraryFolder
@@ -61,7 +63,8 @@ fun LibraryScreen(
     userDisplayName: String? = null,
     onOpenFolder: (LibraryFolder) -> Unit,
     modifier: Modifier = Modifier,
-    recentlyViewed: RecentlyViewedRepository? = null
+    recentlyViewed: RecentlyViewedRepository? = null,
+    onOpenDiscover: ((DiscoverDestination) -> Unit)? = null
 ) {
     val viewModel = centraliaViewModel(key = "library") {
         LibraryViewModel(videoRepository, folderRepository)
@@ -124,6 +127,13 @@ fun LibraryScreen(
                         onClick = onOpenSearchTab,
                         modifier = Modifier.padding(horizontal = Spacing.medium)
                     )
+                }
+            }
+
+            // Sprint 4: the five new views (Watch later, Rediscover, Creators, Trends, Insights).
+            if (onOpenDiscover != null) {
+                item(key = "discover") {
+                    CenteredContent { DiscoverShortcutsRow(onOpen = onOpenDiscover) }
                 }
             }
 
@@ -366,7 +376,10 @@ private fun androidx.compose.foundation.lazy.LazyListScope.masonryFeed(
 
     items(
         count = pairs.size,
-        key = { index -> "masonry-${pairs[index].first().id}" }
+        key = { index -> "masonry-${pairs[index].first().id}" },
+        // Micro-optimization (Sprint 4): every row has the same layout, so
+        // Compose can reuse a row that scrolled off instead of building a new one.
+        contentType = { "masonryRow" }
     ) { index ->
         val pair = pairs[index]
 
