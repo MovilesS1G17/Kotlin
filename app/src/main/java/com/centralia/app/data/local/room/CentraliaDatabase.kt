@@ -11,6 +11,8 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Transaction
 import androidx.room.Upsert
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -70,14 +72,35 @@ abstract class RecentlyViewedDao {
     }
 }
 
-@Database(entities = [RecentlyViewedEntity::class], version = 1, exportSchema = false)
+@Database(
+    entities = [RecentlyViewedEntity::class, WatchLaterEntity::class],
+    version = 2,
+    exportSchema = false
+)
 abstract class CentraliaDatabase : RoomDatabase() {
     abstract fun recentlyViewedDao(): RecentlyViewedDao
 
+    /** Sprint 4 (Alex): the Watch later queue. */
+    abstract fun watchLaterDao(): WatchLaterDao
+
     companion object {
+        /** Sprint 4: version 2 adds the `watch_later` table and keeps "Recently viewed". */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `watch_later` (`videoID` TEXT NOT NULL, `title` TEXT NOT NULL, " +
+                        "`platform` TEXT NOT NULL, `creator` TEXT NOT NULL, `thumbnailURL` TEXT, " +
+                        "`addedAt` INTEGER NOT NULL, `position` INTEGER NOT NULL, `watchedAt` INTEGER, " +
+                        "PRIMARY KEY(`videoID`))"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_watch_later_position` ON `watch_later` (`position`)")
+            }
+        }
+
         fun build(context: Context): CentraliaDatabase =
             Room.databaseBuilder(context, CentraliaDatabase::class.java, "centralia.db")
-                // Only a local history lives here, so a schema change may rebuild it.
+                .addMigrations(MIGRATION_1_2)
+                // Only local lists live here, so an unknown schema may be rebuilt.
                 .fallbackToDestructiveMigration()
                 .build()
     }
