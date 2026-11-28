@@ -69,6 +69,7 @@ fun CentraliaRoot(
                 AppSession.AuthenticationDestination.LOG_IN -> LogInScreen(
                     repository = container.authenticationRepository,
                     visit = currentPhase.visit,
+                    rememberedEmail = container.rememberedEmail,
                     showSignUp = container.session::showSignUp,
                     completeAuthentication = container.session::completeAuthentication,
                     requireVerification = { challenge ->
