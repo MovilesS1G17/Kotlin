@@ -1,5 +1,7 @@
 package com.centralia.app.feature.save
 
+import com.centralia.app.domain.library.TagRules
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -67,7 +69,8 @@ fun SaveImportStatusCard(
     metadata: ImportedVideoMetadata?,
     stage: VideoImportStage?,
     errorMessage: String?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    errorTitle: String = "This link can't be saved"
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -96,7 +99,7 @@ fun SaveImportStatusCard(
                             modifier = Modifier.size(18.dp)
                         )
                         Text(
-                            text = "Link not supported",
+                            text = errorTitle,
                             style = CentraliaType.headline,
                             color = CentraliaColors.Error
                         )
@@ -257,7 +260,12 @@ fun SaveTagChip(
         Text(
             text = tag,
             style = CentraliaType.subheadline.semibold(),
-            color = CentraliaColors.Canvas
+            color = CentraliaColors.Canvas,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            // Shrinks before the remove button does, so a long tag never
+            // pushes the chip past the screen edge.
+            modifier = Modifier.weight(1f, fill = false)
         )
 
         Box(
@@ -388,9 +396,8 @@ fun SaveTagEditorSheet(
     LaunchedEffect(Unit) { runCatching { tagFocusRequester.requestFocus() } }
 
     val addManualTag = {
-        val trimmedTag = tag.trim()
-        if (trimmedTag.isNotEmpty()) {
-            onAddTag(trimmedTag)
+        if (TagRules.isValid(tag)) {
+            onAddTag(TagRules.clean(tag))
             tag = ""
         }
     }
@@ -398,7 +405,14 @@ fun SaveTagEditorSheet(
     CentraliaSheet(
         title = "Add tag",
         onDismissRequest = onDismiss,
-        trailingAction = SheetAction(title = "Done", onClick = onDismiss)
+        // TA feedback: "Done" keeps what was just typed instead of dropping it.
+        trailingAction = SheetAction(
+            title = "Done",
+            onClick = {
+                addManualTag()
+                onDismiss()
+            }
+        )
     ) {
         Column(
             modifier = Modifier
@@ -420,7 +434,7 @@ fun SaveTagEditorSheet(
                 CentraliaBorderedTextField(
                     placeholder = "Tag",
                     value = tag,
-                    onValueChange = { tag = it },
+                    onValueChange = { tag = TagRules.limitInput(it) },
                     minHeight = 52.dp,
                     focusRequester = tagFocusRequester,
                     onSubmit = addManualTag,
@@ -429,10 +443,14 @@ fun SaveTagEditorSheet(
 
                 CentraliaTextButton(
                     title = "Add Tag",
-                    isDisabled = tag.trim().isEmpty(),
+                    isDisabled = !TagRules.isValid(tag),
                     onClick = addManualTag
                 )
             }
+
+            SheetSectionFooter(
+                text = "Up to ${TagRules.MAX_LENGTH} characters · ${TagRules.counter(tag)}"
+            )
 
             if (availableTagSuggestions.isNotEmpty()) {
                 SheetSectionHeader(title = "Suggestions")

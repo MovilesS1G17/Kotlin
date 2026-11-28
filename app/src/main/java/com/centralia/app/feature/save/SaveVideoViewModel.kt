@@ -2,14 +2,16 @@ package com.centralia.app.feature.save
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.centralia.app.data.remote.ApiException
 import com.centralia.app.domain.imports.ImportedVideoMetadata
-import com.centralia.app.domain.imports.VideoImportException
+import com.centralia.app.domain.imports.LinkProblem
 import com.centralia.app.domain.imports.VideoImportPipeline
 import com.centralia.app.domain.imports.VideoImportStage
 import com.centralia.app.domain.library.ContentAnalysisStatus
 import com.centralia.app.domain.library.FolderRepository
 import com.centralia.app.domain.library.FolderSymbol
 import com.centralia.app.domain.library.LibraryFolder
+import com.centralia.app.domain.library.TagRules
 import com.centralia.app.domain.library.VideoItem
 import com.centralia.app.domain.library.VideoItemRepository
 import com.centralia.app.domain.smart.SmartFolderSuggestion
@@ -35,7 +37,9 @@ class SaveVideoViewModel(
         data object Idle : AnalysisState
         data class Processing(val stage: VideoImportStage) : AnalysisState
         data object Ready : AnalysisState
-        data class Failed(val message: String) : AnalysisState
+        data class Failed(val problem: LinkProblem) : AnalysisState {
+            val message: String get() = problem.message
+        }
     }
 
     data class UiState(
@@ -188,8 +192,11 @@ class SaveVideoViewModel(
                     suggestedTags = emptyList(),
                     suggestedFolderName = null,
                     analysisState = AnalysisState.Failed(
-                        error.localizedMessage
-                            ?: VideoImportException.UnsupportedSource.message.orEmpty()
+                        // A clear title ("This TikTok link isn't a video") plus how to fix it.
+                        when (error) {
+                            is ApiException -> LinkProblem.from(error.code, error.title, error.detail)
+                            else -> LinkProblem.from(null, null, error.localizedMessage)
+                        }
                     )
                 )
             }
@@ -233,15 +240,9 @@ class SaveVideoViewModel(
     }
 
     fun addTag(value: String) {
-        val tag = value.trim()
-        if (tag.isEmpty()) return
-
+        // Same rule as the API: trimmed, at most TagRules.MAX_LENGTH characters, no duplicates.
         _uiState.update { current ->
-            if (current.selectedTags.any { it.equals(tag, ignoreCase = true) }) {
-                current
-            } else {
-                current.copy(selectedTags = current.selectedTags + tag)
-            }
+            current.copy(selectedTags = TagRules.addPending(current.selectedTags, value))
         }
     }
 

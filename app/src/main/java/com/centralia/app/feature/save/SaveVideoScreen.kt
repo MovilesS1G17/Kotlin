@@ -199,7 +199,8 @@ fun SaveVideoScreen(
                         is SaveVideoViewModel.AnalysisState.Failed -> SaveImportStatusCard(
                             metadata = null,
                             stage = null,
-                            errorMessage = analysis.message
+                            errorMessage = analysis.problem.message,
+                            errorTitle = analysis.problem.title
                         )
                     }
                 }
